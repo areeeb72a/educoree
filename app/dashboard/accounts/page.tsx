@@ -700,7 +700,7 @@ function SalaryTab({ profile }: any) {
                 <div key={r.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex justify-between items-center flex-wrap gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-base">
-                      {{ teacher: "👨‍🏫", admin: "🧑‍💼", accounts: "💰", principal: "🏫", school_owner: "👑" }[staff?.role] || "👤"}
+                      {{ teacher: "👨‍🏫", admin: "🧑‍💼", accounts: "💰", principal: "🏫", school_owner: "👑" }[(staff?.role || "") as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || "👤"}
                     </div>
                     <div>
                       <div className="text-sm font-bold text-gray-900">{staff?.name || "Unknown"}</div>

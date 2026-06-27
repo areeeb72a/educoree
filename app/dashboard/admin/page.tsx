@@ -767,7 +767,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {filteredStaff.map((s, idx) => {
-                        const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role] || Users
+                        const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
                         return (
                           <tr key={s.id} style={{ borderBottom: idx < filteredStaff.length - 1 ? '1px solid #1e1b3a' : 'none' }}>
                             <td className="px-4 py-3">
@@ -860,7 +860,7 @@ export default function AdminDashboard() {
                           {attStaffList.map((s, idx) => {
                             const record = attRecords[s.id]
                             const currentStatus = record?.status
-                            const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role] || Users
+                            const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
                             return (
                               <tr key={s.id} style={{ borderBottom: idx < attStaffList.length - 1 ? '1px solid #1e1b3a' : 'none' }}>
                                 <td className="px-4 py-3">
@@ -1335,7 +1335,7 @@ export default function AdminDashboard() {
                   {payrollStaffList.map(s => {
                     const structure = salaryStructures[s.id]
                     const isEditing = editingStaffId === s.id
-                    const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role] || Users
+                    const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
                     return (
                       <div key={s.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden">
                         <div className="p-4 flex justify-between items-center flex-wrap gap-3">
@@ -1419,7 +1419,7 @@ export default function AdminDashboard() {
                       const gross = structureTotal(s.id)
                       const record = payrollRecords[s.id]
                       const isProcessed = !!record
-                      const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role] || Users
+                      const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
                       return (
                         <div key={s.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 flex justify-between items-center flex-wrap gap-3">
                           <div className="flex items-center gap-3">
