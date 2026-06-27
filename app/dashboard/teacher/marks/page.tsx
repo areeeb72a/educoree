@@ -47,6 +47,7 @@ export default function TeacherMarksPage() {
 
     async function fetchTeacherData() {
         const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
         setTeacher(user);
 
         const { data: all } = await supabase

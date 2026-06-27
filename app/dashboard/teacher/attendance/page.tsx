@@ -29,6 +29,7 @@ export default function TeacherAttendancePage() {
 
   async function fetchTeacherData() {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     setTeacher(user);
 
     const { data: all } = await supabase

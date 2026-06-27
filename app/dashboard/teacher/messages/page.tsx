@@ -29,6 +29,7 @@ export default function TeacherMessagesPage() {
   async function fetchTeacherAndStudents() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
     setTeacher(user);
 
     const { data: assigns } = await supabase
