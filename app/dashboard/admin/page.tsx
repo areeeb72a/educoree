@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', role: 'teacher', phone: '',
     father_name: '', address: '', blood_group: '', emergency_name: '',
-    emergency_phone: '', joining_date: '',
+    emergency_phone: '', joining_date: '', photo_url: '',
   })
   const [formError, setFormError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
@@ -59,6 +59,157 @@ export default function AdminDashboard() {
   useEffect(() => { if (activeTab === 'staff' && !staffLoaded) fetchStaff() }, [activeTab])
   useEffect(() => { if (activeTab === 'reset-password') fetchResetUsers() }, [activeTab, profile])
   useEffect(() => { if (activeTab === 'notice-ticker') fetchTicker() }, [activeTab, profile])
+  useEffect(() => { if (activeTab === 'students' && !studentsLoaded) fetchStudents() }, [activeTab])
+
+  // students tab states
+  const [studentsList, setStudentsList] = useState<any[]>([])
+  const [studentsLoading, setStudentsLoading] = useState(false)
+  const [studentsLoaded, setStudentsLoaded] = useState(false)
+  const [studentsSearch, setStudentsSearch] = useState('')
+  const [studentBranchFilter, setStudentBranchFilter] = useState('all')
+  const [studentGradeFilter, setStudentGradeFilter] = useState('all')
+  const [viewStudent, setViewStudent] = useState<any | null>(null)
+  const [editStudent, setEditStudent] = useState<any | null>(null)
+  const [editStudentForm, setEditStudentForm] = useState({ name: '', grade: '', section: '', branch_id: '', dob: '', blood_group: '', discount_pct: '0' })
+  const [showAddStudentForm, setShowAddStudentForm] = useState(false)
+  const [addStudentForm, setAddStudentForm] = useState({
+    name: '', dob: '', blood_group: '', grade: '1', section: 'A', roll_number: '', branch_id: '',
+    guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: ''
+  })
+  const [savingStudent, setSavingStudent] = useState(false)
+  const [studentMsg, setStudentMsg] = useState('')
+  const [uploadingStudentPhoto, setUploadingStudentPhoto] = useState(false)
+
+  async function fetchStudents() {
+    if (!profile?.school_id) return
+    setStudentsLoading(true)
+    const { data } = await supabase
+      .from('students')
+      .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, branches(name), guardians(name, gr_number, phone)')
+      .eq('school_id', profile.school_id)
+      .order('grade')
+      .order('name')
+    setStudentsList(data || [])
+    setStudentsLoading(false)
+    setStudentsLoaded(true)
+  }
+
+  async function toggleStudentActive(student: any) {
+    const nextVal = !(student.active ?? true)
+    const { error } = await supabase
+      .from('students')
+      .update({ active: nextVal })
+      .eq('id', student.id)
+    if (!error) {
+      setStudentsList(prev => prev.map(s => s.id === student.id ? { ...s, active: nextVal } : s))
+    }
+  }
+
+  async function saveEditStudent() {
+    if (!editStudent) return
+    setSavingStudent(true)
+    setStudentMsg('')
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({
+          name: editStudentForm.name,
+          grade: editStudentForm.grade || null,
+          section: editStudentForm.section || 'A',
+          branch_id: editStudentForm.branch_id || null,
+          dob: editStudentForm.dob || null,
+          blood_group: editStudentForm.blood_group || null,
+          discount_pct: Number(editStudentForm.discount_pct || 0)
+        })
+         .eq('id', editStudent.id)
+      if (error) throw error
+      setStudentMsg('Student successfully updated!')
+      fetchStudents()
+      setTimeout(() => setEditStudent(null), 1000)
+    } catch (err: any) {
+      setStudentMsg('Error: ' + err.message)
+    }
+    setSavingStudent(false)
+  }
+
+  async function handleStudentPhotoUpload(e: any) {
+    if (!viewStudent) return
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingStudentPhoto(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64 = reader.result as string
+        const { error } = await supabase
+          .from('students')
+          .update({ photo_url: base64 })
+          .eq('id', viewStudent.id)
+        if (error) throw error
+        
+        const updatedStudent = { ...viewStudent, photo_url: base64 }
+        setViewStudent(updatedStudent)
+        setStudentsList(prev => prev.map(s => s.id === viewStudent.id ? updatedStudent : s))
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      alert('Photo upload failed: ' + err.message)
+    }
+    setUploadingStudentPhoto(false)
+  }
+
+  async function handleAddStudent() {
+    setStudentMsg('')
+    if (!addStudentForm.name.trim()) { setStudentMsg('Error: Name is required'); return }
+    if (!addStudentForm.guardian_name.trim()) { setStudentMsg('Error: Guardian Name is required'); return }
+    
+    setSavingStudent(true)
+    try {
+      // 1. Insert guardian
+      const { data: guardian, error: gErr } = await supabase
+        .from('guardians')
+        .insert({
+          school_id: profile.school_id,
+          name: addStudentForm.guardian_name,
+          gr_number: addStudentForm.guardian_gr || `GR-${Math.floor(1000 + Math.random() * 9000)}`,
+          phone: addStudentForm.guardian_phone || null
+        })
+        .select()
+        .single()
+      if (gErr) throw gErr
+
+      // 2. Insert student
+      const { error: sErr } = await supabase
+        .from('students')
+        .insert({
+          school_id: profile.school_id,
+          branch_id: addStudentForm.branch_id || profile.branch_id,
+          guardian_id: guardian.id,
+          name: addStudentForm.name,
+          dob: addStudentForm.dob || null,
+          blood_group: addStudentForm.blood_group || null,
+          grade: addStudentForm.grade || null,
+          section: addStudentForm.section || 'A',
+          roll_number: addStudentForm.roll_number ? Number(addStudentForm.roll_number) : null,
+          discount_pct: Number(addStudentForm.discount_pct || 0),
+          photo_url: addStudentForm.photo_url || null,
+          active: true,
+          auto_id: `STUDENT-ST${Math.floor(10000 + Math.random() * 90000)}`
+        })
+      if (sErr) throw sErr
+
+      setStudentMsg('Success: Student added successfully!')
+      setShowAddStudentForm(false)
+      setAddStudentForm({
+        name: '', dob: '', blood_group: '', grade: '1', section: 'A', roll_number: '', branch_id: '',
+        guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: ''
+      })
+      fetchStudents()
+    } catch (err: any) {
+      setStudentMsg('Error: ' + err.message)
+    }
+    setSavingStudent(false)
+  }
 
   async function fetchTicker() {
     if (!profile?.school_id) return
@@ -166,12 +317,41 @@ export default function AdminDashboard() {
     }
     setResettingUser(false)
   }
+  const [viewTeacher, setViewTeacher] = useState<any | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  async function handlePhotoUpload(e: any) {
+    if (!viewTeacher) return
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64 = reader.result as string
+        const { error } = await supabase
+          .from('profiles')
+          .update({ photo_url: base64 })
+          .eq('id', viewTeacher.id)
+        if (error) throw error
+        
+        const updatedTeacher = { ...viewTeacher, photo_url: base64 }
+        setViewTeacher(updatedTeacher)
+        setStaffList(prev => prev.map(s => s.id === viewTeacher.id ? { ...s, photo_url: base64 } : s))
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      alert('Photo upload failed: ' + err.message)
+    }
+    setUploadingPhoto(false)
+  }
+
   async function fetchStaff() {
     if (!profile?.school_id) return
     setStaffLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, name, role, phone, joining_date, active, auto_id, branch_id')
+      .select('id, name, role, phone, joining_date, active, auto_id, branch_id, photo_url')
       .eq('school_id', profile.school_id)
       .neq('role', 'student')
       .order('name')
@@ -188,7 +368,7 @@ export default function AdminDashboard() {
     setFormData({
       name: '', email: '', password: '', role: 'teacher', phone: '',
       father_name: '', address: '', blood_group: '', emergency_name: '',
-      emergency_phone: '', joining_date: '',
+      emergency_phone: '', joining_date: '', photo_url: '',
     })
     setFormError('')
   }
@@ -651,7 +831,7 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const tabs = ['overview', 'staff', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
+  const tabs = ['overview', 'staff', 'students', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
   const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
@@ -771,6 +951,19 @@ export default function AdminDashboard() {
                     
                     <input placeholder="Father's Name" type="text" value={formData.father_name} onChange={e => updateForm('father_name', e.target.value)}
                       style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Profile Picture:</label>
+                      <input type="file" accept="image/*" onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onloadend = () => updateForm('photo_url', reader.result as string)
+                          reader.readAsDataURL(file)
+                        }
+                      }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                      {formData.photo_url && <span style={{ color: 'var(--accent-emerald)', fontSize: 12, fontWeight: 700 }}>✓ Uploaded</span>}
+                    </div>
                   </div>
 
                   {formError && <div style={{ fontSize: 12, color: 'var(--accent-rose)', marginBottom: 8 }}>{formError}</div>}
@@ -798,6 +991,7 @@ export default function AdminDashboard() {
                           <th>Contact</th>
                           <th>Faculty ID</th>
                           <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -812,6 +1006,11 @@ export default function AdminDashboard() {
                                 {s.active ? 'Active' : 'Inactive'}
                               </span>
                             </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button onClick={() => setViewTeacher(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>
+                                View Card
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -819,6 +1018,407 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* View Staff Details Modal (Premium Staff Card style) */}
+              {viewTeacher && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+                  <div style={{ background: 'linear-gradient(145deg, #0f172a, #1e293b)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', position: 'relative' }}>
+                    
+                    {/* ID Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 14, marginBottom: 18 }}>
+                      <div>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-purple)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>EduCore Faculty System</span>
+                        <h4 style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 700, color: '#fff' }}>STAFF ID CARD</h4>
+                      </div>
+                      <span style={{ fontSize: 20 }}>⚡</span>
+                    </div>
+
+                    {/* Profile Photo Area */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+                      <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(124,58,237,0.3)', padding: 3, background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                        <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {viewTeacher.photo_url ? (
+                            <img src={viewTeacher.photo_url} alt={viewTeacher.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: 32, fontWeight: 800, color: 'rgba(255,255,255,0.15)' }}>
+                              {viewTeacher.name ? viewTeacher.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'TF'}
+                            </span>
+                          )}
+                        </div>
+                        {/* Upload Photo Button Overlay */}
+                        <label style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--accent-purple)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', border: '2px solid #0f172a' }}>
+                          <span style={{ fontSize: 12 }}>📷</span>
+                          <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                        {uploadingPhoto ? 'Uploading photo...' : 'Click camera to change photo'}
+                      </span>
+                    </div>
+
+                    {/* Card Info Fields Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Full Name</span>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{viewTeacher.name}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Staff ID</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'monospace' }}>{viewTeacher.auto_id || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Designation / Role</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>{viewTeacher.role || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Phone Number</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewTeacher.phone || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch Assigned</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewTeacher.branches?.name || 'No Branch'}</div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Status</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: (viewTeacher.active ?? true) ? '#34D399' : '#F87171' }}>
+                          {(viewTeacher.active ?? true) ? 'Active Faculty' : 'Inactive / Disabled'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simulated ID Card Barcode */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.45, marginBottom: 20 }}>
+                      <div style={{ display: 'flex', gap: 2, height: 24, width: '100%', maxWidth: 200, background: '#fff', padding: '3px 10px', borderRadius: 4, alignItems: 'center', justifyContent: 'center' }}>
+                        {[1, 4, 2, 1, 3, 1, 4, 1, 2, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1].map((w, i) => (
+                          <div key={i} style={{ width: w, height: '100%', background: '#000', flexShrink: 0 }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>*TF-{viewTeacher.id.slice(0, 8).toUpperCase()}*</span>
+                    </div>
+
+                    <button
+                      onClick={() => setViewTeacher(null)}
+                      style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'background 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    >Close Details</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'students' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Student Enrollment Registry</span>
+                <button onClick={() => { setShowAddStudentForm(!showAddStudentForm); setStudentMsg('') }}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                  {showAddStudentForm ? '✕ Cancel' : '+ Enroll Student'}
+                </button>
+              </div>
+
+              {showAddStudentForm && (
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Enroll New Student</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <input placeholder="Student Full Name *" type="text" value={addStudentForm.name} onChange={e => setAddStudentForm({ ...addStudentForm, name: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <input placeholder="Date of Birth" type="date" value={addStudentForm.dob} onChange={e => setAddStudentForm({ ...addStudentForm, dob: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <select value={addStudentForm.grade} onChange={e => setAddStudentForm({ ...addStudentForm, grade: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                      {['1','2','3','4','5','6','7','8','9','10'].map(g => <option key={g} value={g}>Grade {g}</option>)}
+                    </select>
+
+                    <input placeholder="Section (e.g. A, B)" type="text" value={addStudentForm.section} onChange={e => setAddStudentForm({ ...addStudentForm, section: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Roll Number" type="text" value={addStudentForm.roll_number} onChange={e => setAddStudentForm({ ...addStudentForm, roll_number: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Blood Group (e.g. O+, A-)" type="text" value={addStudentForm.blood_group} onChange={e => setAddStudentForm({ ...addStudentForm, blood_group: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Discount % (0-100)" type="number" value={addStudentForm.discount_pct} onChange={e => setAddStudentForm({ ...addStudentForm, discount_pct: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Guardian Full Name *" type="text" value={addStudentForm.guardian_name} onChange={e => setAddStudentForm({ ...addStudentForm, guardian_name: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Guardian GR Number (e.g. GR-9812)" type="text" value={addStudentForm.guardian_gr} onChange={e => setAddStudentForm({ ...addStudentForm, guardian_gr: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Guardian Phone Number" type="text" value={addStudentForm.guardian_phone} onChange={e => setAddStudentForm({ ...addStudentForm, guardian_phone: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Profile Photo:</label>
+                      <input type="file" accept="image/*" onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onloadend = () => setAddStudentForm({ ...addStudentForm, photo_url: reader.result as string })
+                          reader.readAsDataURL(file)
+                        }
+                      }} style={{ fontSize: 12, color: 'var(--text-secondary)' }} />
+                      {addStudentForm.photo_url && <span style={{ color: 'var(--accent-emerald)', fontSize: 12, fontWeight: 700 }}>✓ Uploaded</span>}
+                    </div>
+                  </div>
+
+                  {studentMsg && <div style={{ fontSize: 12, color: studentMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginBottom: 8 }}>{studentMsg}</div>}
+
+                  <button onClick={handleAddStudent} disabled={savingStudent}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: savingStudent ? 0.6 : 1 }}>
+                    {savingStudent ? 'Enrolling...' : 'Enroll Student'}
+                  </button>
+                </div>
+              )}
+
+              {/* Filters & Search */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search student name or ID..."
+                  value={studentsSearch}
+                  onChange={e => setStudentsSearch(e.target.value)}
+                  style={{ flex: 1, minWidth: 200, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                />
+                
+                <select value={studentGradeFilter} onChange={e => setStudentGradeFilter(e.target.value)}
+                  style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}>
+                  <option value="all">All Grades</option>
+                  {['1','2','3','4','5','6','7','8','9','10'].map(g => (
+                    <option key={g} value={g}>Grade {g}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Students Table */}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                {studentsLoading ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading students registry...</p>
+                ) : studentsList.length === 0 ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students enrolled.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Student Name</th>
+                          <th>ID</th>
+                          <th>Class</th>
+                          <th>Guardian Name</th>
+                          <th>Guardian Phone</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentsList
+                          .filter(s => !studentsSearch || s.name?.toLowerCase().includes(studentsSearch.toLowerCase()) || s.auto_id?.toLowerCase().includes(studentsSearch.toLowerCase()))
+                          .filter(s => studentGradeFilter === 'all' || s.grade === studentGradeFilter)
+                          .map(s => (
+                            <tr key={s.id}>
+                              <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                              <td style={{ fontFamily: 'monospace' }}>{s.auto_id || '—'}</td>
+                              <td>Grade {s.grade} - {s.section || 'A'}</td>
+                              <td>{s.guardians?.name || '—'}</td>
+                              <td>{s.guardians?.phone || '—'}</td>
+                              <td>
+                                <span className={`status-badge ${s.active ? 'active' : 'inactive'}`}>
+                                  {s.active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setViewStudent(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>
+                                    View Card
+                                  </button>
+                                  <button onClick={() => {
+                                    setEditStudent(s)
+                                    setEditStudentForm({
+                                      name: s.name,
+                                      grade: s.grade || '',
+                                      section: s.section || '',
+                                      branch_id: s.branch_id || '',
+                                      dob: s.dob || '',
+                                      blood_group: s.blood_group || '',
+                                      discount_pct: String(s.discount_pct || 0)
+                                    })
+                                    setStudentMsg('')
+                                  }} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>
+                                    Edit
+                                  </button>
+                                  <button onClick={() => toggleStudentActive(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: s.active ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>
+                                    {s.active ? 'Disable' : 'Enable'}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* View Student Details Modal (Premium ID Card style) */}
+              {viewStudent && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+                  <div style={{ background: 'linear-gradient(145deg, #0f172a, #1e293b)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', position: 'relative' }}>
+                    
+                    {/* ID Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 14, marginBottom: 18 }}>
+                      <div>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-purple)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>EduCore ID System</span>
+                        <h4 style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 700, color: '#fff' }}>STUDENT ID CARD</h4>
+                      </div>
+                      <span style={{ fontSize: 20 }}>⚡</span>
+                    </div>
+
+                    {/* Profile Photo Area */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+                      <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(124,58,237,0.3)', padding: 3, background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                        <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {viewStudent.photo_url ? (
+                            <img src={viewStudent.photo_url} alt={viewStudent.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: 32, fontWeight: 800, color: 'rgba(255,255,255,0.15)' }}>
+                              {viewStudent.name ? viewStudent.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'ST'}
+                            </span>
+                          )}
+                        </div>
+                        {/* Upload Photo Button Overlay */}
+                        <label style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--accent-purple)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', border: '2px solid #0f172a' }}>
+                          <span style={{ fontSize: 12 }}>📷</span>
+                          <input type="file" accept="image/*" onChange={handleStudentPhotoUpload} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                        {uploadingStudentPhoto ? 'Uploading photo...' : 'Click camera to change photo'}
+                      </span>
+                    </div>
+
+                    {/* Card Info Fields Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Full Name</span>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{viewStudent.name}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Student ID</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'monospace' }}>{viewStudent.auto_id || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Class & Section</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Grade {viewStudent.grade || '—'} - {viewStudent.section || 'A'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Blood Group</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#FCA5A5' }}>{viewStudent.blood_group || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewStudent.branches?.name || '—'}</div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Name & GR</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.name || '—'} (GR: {viewStudent.guardians?.gr_number || '—'})</div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Phone</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.phone || '—'}</div>
+                      </div>
+                    </div>
+
+                    {/* Simulated ID Card Barcode */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.45, marginBottom: 20 }}>
+                      <div style={{ display: 'flex', gap: 2, height: 24, width: '100%', maxWidth: 200, background: '#fff', padding: '3px 10px', borderRadius: 4, alignItems: 'center', justifyContent: 'center' }}>
+                        {[1, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 1, 4, 1, 2].map((w, i) => (
+                          <div key={i} style={{ width: w, height: '100%', background: '#000', flexShrink: 0 }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>*ST-{viewStudent.id.slice(0, 8).toUpperCase()}*</span>
+                    </div>
+
+                    <button
+                      onClick={() => setViewStudent(null)}
+                      style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'background 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    >Close Details</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Student Modal */}
+              {editStudent && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400 }}>
+                    <h3 style={{ margin: '0 0 20px', color: 'var(--text-primary)', fontSize: 18, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>Edit Student</h3>
+
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Full Name</label>
+                      <input
+                        value={editStudentForm.name}
+                        onChange={e => setEditStudentForm({ ...editStudentForm, name: e.target.value })}
+                        style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Grade</label>
+                        <select value={editStudentForm.grade} onChange={e => setEditStudentForm({ ...editStudentForm, grade: e.target.value })}
+                          style={{ width: '100%', padding: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                          {['1','2','3','4','5','6','7','8','9','10'].map(g => <option key={g} value={g}>Grade {g}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Section</label>
+                        <input
+                          value={editStudentForm.section}
+                          onChange={e => setEditStudentForm({ ...editStudentForm, section: e.target.value })}
+                          style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>DOB</label>
+                        <input
+                          type="date"
+                          value={editStudentForm.dob}
+                          onChange={e => setEditStudentForm({ ...editStudentForm, dob: e.target.value })}
+                          style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Blood Group</label>
+                        <input
+                          value={editStudentForm.blood_group}
+                          onChange={e => setEditStudentForm({ ...editStudentForm, blood_group: e.target.value })}
+                          style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+
+                    {studentMsg && <div style={{ fontSize: 12, color: studentMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginBottom: 12 }}>{studentMsg}</div>}
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => setEditStudent(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+                      <button onClick={saveEditStudent} disabled={savingStudent}
+                        style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        {savingStudent ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       emergency_name,
       emergency_phone,
       joining_date,
+      photo_url,
     } = body
 
     if (!email || !password || !name || !role) {
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
         emergency_name: emergency_name || null,
         emergency_phone: emergency_phone || null,
         joining_date: joining_date || null,
+        photo_url: photo_url || null,
         active: true,
       })
       .select()
