@@ -662,7 +662,28 @@ export default function AdminDashboard() {
   const [leaveSaving, setLeaveSaving] = useState<string | null>(null)
   const [applicantMap, setApplicantMap] = useState<Record<string, any>>({})
 
+  // timetable/timesheet tab states
+  const [timesheetGrade, setTimesheetGrade] = useState('1')
+  const [timesheetSection, setTimesheetSection] = useState('A')
+  const [timetableEntries, setTimetableEntries] = useState<any[]>([])
+  const [timetableLoading, setTimetableLoading] = useState(false)
+  const [savingTimetable, setSavingTimetable] = useState(false)
+  const [timetableMsg, setTimetableMsg] = useState('')
+  const [inchargeTeacher, setInchargeTeacher] = useState<any | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ day: string, period: number } | null>(null)
+  const [assignTeacherId, setAssignTeacherId] = useState('')
+  const [assignSubject, setAssignSubject] = useState('')
+  const [teacherWorkloads, setTeacherWorkloads] = useState<any[]>([])
+  const [workloadsLoading, setWorkloadsLoading] = useState(false)
+
   useEffect(() => { if (activeTab === 'leave' && !leaveLoaded) fetchLeaveApplications() }, [activeTab])
+  useEffect(() => {
+    if (activeTab === 'timesheet') {
+      fetchTimetable()
+      fetchTeacherWorkloads()
+      if (!staffLoaded) fetchStaff()
+    }
+  }, [activeTab, timesheetGrade, timesheetSection])
 
   async function fetchLeaveApplications() {
     if (!profile?.school_id) return
@@ -698,6 +719,203 @@ export default function AdminDashboard() {
       .eq('id', leaveId)
     await fetchLeaveApplications()
     setLeaveSaving(null)
+  }
+
+  async function fetchTimetable() {
+    if (!profile?.school_id) return
+    setTimetableLoading(true)
+    setTimetableMsg('')
+    try {
+      const { data: entries, error } = await supabase
+        .from('timetable')
+        .select('*')
+        .eq('school_id', profile.school_id)
+        .eq('grade', timesheetGrade)
+        .eq('section', timesheetSection)
+      if (error) throw error
+      setTimetableEntries(entries || [])
+
+      // Fetch class teacher (incharge) from teacher_assignments
+      const { data: inchargeData } = await supabase
+        .from('teacher_assignments')
+        .select('*, profiles!teacher_id(name)')
+        .eq('school_id', profile.school_id)
+        .eq('grade', timesheetGrade)
+        .eq('section', timesheetSection)
+        .eq('is_incharge', true)
+        .maybeSingle()
+      setInchargeTeacher(inchargeData || null)
+    } catch (err: any) {
+      setTimetableMsg('Error: ' + err.message)
+    }
+    setTimetableLoading(false)
+  }
+
+  async function autoAssignClassTeacher() {
+    if (!inchargeTeacher) {
+      setTimetableMsg('Error: No class teacher assigned to this class.')
+      return
+    }
+    setSavingTimetable(true)
+    setTimetableMsg('')
+    try {
+      const days = ['MON', 'TUE', 'WED', 'THU', 'FRI']
+      const promises = days.map(async (day) => {
+        const existing = timetableEntries.find(e => e.day_of_week === day && e.period_no === 1)
+        const payload = {
+          school_id: profile.school_id,
+          branch_id: profile.branch_id,
+          teacher_id: inchargeTeacher.teacher_id,
+          grade: timesheetGrade,
+          section: timesheetSection,
+          subject: inchargeTeacher.subject || 'Class Teacher Period',
+          day_of_week: day,
+          period_no: 1,
+          start_time: '08:00',
+          end_time: '08:45'
+        }
+        if (existing) {
+          return supabase.from('timetable').update(payload).eq('id', existing.id)
+        } else {
+          return supabase.from('timetable').insert(payload)
+        }
+      })
+      await Promise.all(promises)
+      setTimetableMsg('Success: Class teacher auto-assigned for Period 1.')
+      fetchTimetable()
+    } catch (err: any) {
+      setTimetableMsg('Error: ' + err.message)
+    }
+    setSavingTimetable(false)
+  }
+
+  async function handleAssignCell() {
+    if (!selectedCell) return
+    if (!assignTeacherId) {
+      setTimetableMsg('Error: Please select a teacher.')
+      return
+    }
+    if (!assignSubject.trim()) {
+      setTimetableMsg('Error: Please enter a subject.')
+      return
+    }
+
+    setSavingTimetable(true)
+    setTimetableMsg('')
+
+    try {
+      const { day, period } = selectedCell
+
+      // 1. Single Subject Constraint: Same teacher-subject combination cannot be assigned twice in this class in the same week
+      const isDuplicateSubject = timetableEntries.some(e =>
+        e.teacher_id === assignTeacherId &&
+        e.subject.toLowerCase() === assignSubject.toLowerCase() &&
+        !(e.day_of_week === day && e.period_no === period)
+      )
+      if (isDuplicateSubject) {
+        throw new Error('Conflict: This teacher is already teaching this subject in this class this week.')
+      }
+
+      // 2. No Overlap Constraint: This teacher cannot teach in another class at the same day/period
+      const { data: overlaps, error: overlapErr } = await supabase
+        .from('timetable')
+        .select('grade, section')
+        .eq('school_id', profile.school_id)
+        .eq('teacher_id', assignTeacherId)
+        .eq('day_of_week', day)
+        .eq('period_no', period)
+      
+      const actualOverlap = overlaps?.filter(o => !(o.grade === timesheetGrade && o.section === timesheetSection))
+      if (overlapErr) throw overlapErr
+      if (actualOverlap && actualOverlap.length > 0) {
+        throw new Error(`Conflict: Teacher is already teaching in Grade ${actualOverlap[0].grade}-${actualOverlap[0].section} at this period.`)
+      }
+
+      const existing = timetableEntries.find(e => e.day_of_week === day && e.period_no === period)
+      const payload = {
+        school_id: profile.school_id,
+        branch_id: profile.branch_id,
+        teacher_id: assignTeacherId,
+        grade: timesheetGrade,
+        section: timesheetSection,
+        subject: assignSubject,
+        day_of_week: day,
+        period_no: period,
+        start_time: period === 1 ? '08:00' : period === 2 ? '08:45' : period === 3 ? '09:30' : period === 4 ? '10:15' : period === 5 ? '11:00' : period === 6 ? '11:45' : '12:30',
+        end_time: period === 1 ? '08:45' : period === 2 ? '09:30' : period === 3 ? '10:15' : period === 4 ? '11:00' : period === 5 ? '11:45' : period === 6 ? '12:30' : '13:15'
+      }
+
+      if (existing) {
+        const { error } = await supabase.from('timetable').update(payload).eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('timetable').insert(payload)
+        if (error) throw error
+      }
+
+      setTimetableMsg('Success: Period assigned successfully!')
+      setSelectedCell(null)
+      fetchTimetable()
+      fetchTeacherWorkloads()
+    } catch (err: any) {
+      setTimetableMsg('Error: ' + err.message)
+    }
+    setSavingTimetable(false)
+  }
+
+  async function handleClearCell(day: string, period: number) {
+    const existing = timetableEntries.find(e => e.day_of_week === day && e.period_no === period)
+    if (!existing) return
+    if (!confirm('Are you sure you want to clear this period assignment?')) return
+    setSavingTimetable(true)
+    try {
+      const { error } = await supabase.from('timetable').delete().eq('id', existing.id)
+      if (error) throw error
+      setTimetableMsg('Success: Period cleared.')
+      fetchTimetable()
+      fetchTeacherWorkloads()
+    } catch (err: any) {
+      setTimetableMsg('Error: ' + err.message)
+    }
+    setSavingTimetable(false)
+  }
+
+  async function fetchTeacherWorkloads() {
+    if (!profile?.school_id) return
+    setWorkloadsLoading(true)
+    try {
+      const { data: entries, error: entErr } = await supabase
+        .from('timetable')
+        .select('teacher_id, subject, grade, section')
+        .eq('school_id', profile.school_id)
+      if (entErr) throw entErr
+
+      const { data: teachers, error: teachErr } = await supabase
+        .from('profiles')
+        .select('id, name, auto_id')
+        .eq('school_id', profile.school_id)
+        .eq('role', 'teacher')
+      if (teachErr) throw teachErr
+
+      const workloads = (teachers || []).map(t => {
+        const tEntries = (entries || []).filter(e => e.teacher_id === t.id)
+        const uniqueSubjects = Array.from(new Set(tEntries.map(e => e.subject)))
+        const uniqueClasses = Array.from(new Set(tEntries.map(e => `${e.grade}-${e.section}`)))
+
+        return {
+          id: t.id,
+          name: t.name,
+          auto_id: t.auto_id,
+          periodsCount: tEntries.length,
+          subjects: uniqueSubjects,
+          classes: uniqueClasses
+        }
+      })
+      setTeacherWorkloads(workloads)
+    } catch (err: any) {
+      console.error('Error fetching teacher workloads:', err.message)
+    }
+    setWorkloadsLoading(false)
   }
 
   const filteredLeaves = leaveList.filter(l => leaveFilter === 'all' || l.status === leaveFilter)
@@ -963,7 +1181,7 @@ export default function AdminDashboard() {
     }
     setLoading(false)
   }
-  const tabs = ['overview', 'staff', 'students', 'exams', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
+  const tabs = ['overview', 'staff', 'students', 'exams', 'attendance', 'timesheet', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
   const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
@@ -989,7 +1207,7 @@ export default function AdminDashboard() {
               borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
               transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
             }}>
-            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab === 'exams' ? '📝 Exams' : tab}
+            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab === 'exams' ? '📝 Exams' : tab === 'timesheet' ? '📅 Timesheet' : tab}
           </button>
         ))}
       </div>
@@ -1895,6 +2113,194 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'timesheet' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              
+              {/* Controls Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 16 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Select Grade</label>
+                    <select value={timesheetGrade} onChange={e => { setTimesheetGrade(e.target.value); setSelectedCell(null); }}
+                      style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }}>
+                      {['1','2','3','4','5','6','7','8','9','10'].map(g => <option key={g} value={g}>Grade {g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Section</label>
+                    <select value={timesheetSection} onChange={e => { setTimesheetSection(e.target.value); setSelectedCell(null); }}
+                      style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }}>
+                      {['A','B','C','D'].map(s => <option key={s} value={s}>Section {s}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {inchargeTeacher ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                      👑 Class Incharge: <strong style={{ color: '#fff' }}>{inchargeTeacher.profiles?.name || 'Assigned'}</strong> · Subject: <strong>{inchargeTeacher.subject}</strong>
+                    </div>
+                    <button onClick={autoAssignClassTeacher} disabled={savingTimetable}
+                      style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      Auto-Assign Incharge to Period 1
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: 'var(--accent-rose)', fontWeight: 600 }}>⚠️ No Class Incharge assigned to Grade {timesheetGrade}-{timesheetSection}</span>
+                )}
+              </div>
+
+              {timetableMsg && (
+                <div style={{ padding: 12, borderRadius: 10, fontSize: 12.5, fontWeight: 600, background: timetableMsg.includes('Error') || timetableMsg.includes('Conflict') ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)', color: timetableMsg.includes('Error') || timetableMsg.includes('Conflict') ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>
+                  {timetableMsg}
+                </div>
+              )}
+
+              {/* Grid & Form Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: selectedCell ? '2fr 1fr' : '1fr', gap: 20, alignItems: 'start' }}>
+                
+                {/* Main 5x7 Timetable Grid */}
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, overflowX: 'auto' }}>
+                  {timetableLoading ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading weekly timesheet...</div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <th style={{ padding: 12, textAlign: 'left', fontSize: 12, color: 'var(--text-muted)' }}>Day / Period</th>
+                          {[1,2,3,4,5,6,7].map(p => (
+                            <th key={p} style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>Period {p}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {['MON', 'TUE', 'WED', 'THU', 'FRI'].map(day => (
+                          <tr key={day} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <td style={{ padding: 12, fontWeight: 800, color: 'var(--text-secondary)', fontSize: 12.5 }}>
+                              {{ MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday' }[day]}
+                            </td>
+                            {[1,2,3,4,5,6,7].map(period => {
+                              const entry = timetableEntries.find(e => e.day_of_week === day && e.period_no === period);
+                              const teacher = staffList.find(s => s.id === entry?.teacher_id);
+                              
+                              return (
+                                <td key={period} style={{ padding: 8, textAlign: 'center' }}>
+                                  {entry ? (
+                                    <div style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 10, padding: 8, position: 'relative' }}>
+                                      <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--accent-purple)' }}>{entry.subject}</div>
+                                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {teacher?.name || 'Teacher'}
+                                      </div>
+                                      <button onClick={() => handleClearCell(day, period)}
+                                        style={{ position: 'absolute', top: -4, right: -4, background: 'var(--accent-rose)', border: 'none', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 8, cursor: 'pointer', fontWeight: 900 }}>
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => { setSelectedCell({ day, period }); setAssignTeacherId(''); setAssignSubject(''); }}
+                                      style={{ padding: '6px 10px', background: 'transparent', border: '1px dashed var(--border-subtle)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 11.5, cursor: 'pointer' }}>
+                                      + Assign
+                                    </button>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Edit Form Sidebar */}
+                {selectedCell && (
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, position: 'sticky', top: 20 }}>
+                    <h4 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Assign Period {selectedCell.period} ({selectedCell.day})
+                    </h4>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Select Teacher *</label>
+                        <select value={assignTeacherId} onChange={e => setAssignTeacherId(e.target.value)}
+                          style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                          <option value="">-- Choose Instructor --</option>
+                          {staffList.filter(s => s.role === 'teacher').map(t => (
+                            <option key={t.id} value={t.id}>{t.name} ({t.auto_id})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Subject Name *</label>
+                        <select value={assignSubject} onChange={e => setAssignSubject(e.target.value)}
+                          style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 }}>
+                          <option value="">-- Select Subject --</option>
+                          {SUBJECTS_LIST.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                        </select>
+                        <input placeholder="Or write custom subject name..." type="text" value={assignSubject} onChange={e => setAssignSubject(e.target.value)}
+                          style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={handleAssignCell} disabled={savingTimetable}
+                          style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {savingTimetable ? 'Saving...' : 'Save slot'}
+                        </button>
+                        <button onClick={() => setSelectedCell(null)}
+                          style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Teacher Workload Board */}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20 }}>
+                <div style={{ marginBottom: 14 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>📊 Faculty Workload Dashboard</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Monitor total weekly assigned periods, distinct subjects, and classes covered by each teacher.</p>
+                </div>
+
+                {workloadsLoading ? (
+                  <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Calculating workloads...</p>
+                ) : teacherWorkloads.length === 0 ? (
+                  <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No teacher workload calculated.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Teacher</th>
+                          <th>Faculty ID</th>
+                          <th style={{ textAlign: 'center' }}>Total Periods</th>
+                          <th>Subjects Taught</th>
+                          <th>Classes Covered</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teacherWorkloads.map(w => (
+                          <tr key={w.id}>
+                            <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{w.name}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{w.auto_id || '—'}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 800, color: w.periodsCount > 25 ? 'var(--accent-rose)' : 'var(--text-primary)' }}>
+                              {w.periodsCount} periods
+                            </td>
+                            <td>{w.subjects.join(', ') || '—'}</td>
+                            <td>{w.classes.join(', ') || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
