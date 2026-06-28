@@ -18,6 +18,7 @@ type Teacher = {
   branch_id: string | null
   active: boolean | null
   role?: string | null
+  photo_url?: string | null
   branches?: { name: string } | null
 }
 
@@ -35,6 +36,33 @@ export default function TeachersManagement() {
   const [editForm, setEditForm] = useState({ name: '', phone: '', branch_id: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  async function handlePhotoUpload(e: any) {
+    if (!viewTeacher) return
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64 = reader.result as string
+        const { error } = await supabase
+          .from('profiles')
+          .update({ photo_url: base64 })
+          .eq('id', viewTeacher.id)
+        if (error) throw error
+        
+        const updatedTeacher = { ...viewTeacher, photo_url: base64 }
+        setViewTeacher(updatedTeacher)
+        setTeachers(prev => prev.map(t => t.id === viewTeacher.id ? updatedTeacher : t))
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      alert('Photo upload failed: ' + err.message)
+    }
+    setUploadingPhoto(false)
+  }
 
   // reset password state
   const [selectedResetUser, setSelectedResetUser] = useState<Teacher | null>(null)
@@ -92,7 +120,7 @@ export default function TeachersManagement() {
     const [tRes, bRes] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, name, role, auto_id, phone, branch_id, active, branches(name)')
+        .select('id, name, role, auto_id, phone, branch_id, active, photo_url, branches(name)')
         .eq('school_id', schoolId)
         .in('role', ['teacher', 'admin', 'accounts', 'principal'])
         .order('name'),
@@ -300,26 +328,88 @@ export default function TeachersManagement() {
         )}
       </div>
 
-      {/* View Details Modal */}
+      {/* View Details Modal (Premium Staff Card style) */}
       {viewTeacher && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400 }}>
-            <h3 style={{ margin: '0 0 20px', color: 'var(--text-primary)', fontSize: 18, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>Teacher Details</h3>
-            {[
-              ['Full Name', viewTeacher.name || '—'],
-              ['Staff ID', viewTeacher.auto_id || '—'],
-              ['Phone', viewTeacher.phone || '—'],
-              ['Branch Assigned', viewTeacher.branches?.name || '—'],
-              ['Status', (viewTeacher.active ?? true) ? 'Active' : 'Inactive'],
-            ].map(([k, v]) => (
-              <div key={k} style={{ marginBottom: 12 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>{k}</span>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{v}</div>
+          <div style={{ background: 'linear-gradient(145deg, #0f172a, #1e293b)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', position: 'relative' }}>
+            
+            {/* ID Card Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 14, marginBottom: 18 }}>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-purple)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>EduCore Faculty System</span>
+                <h4 style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 700, color: '#fff' }}>STAFF ID CARD</h4>
               </div>
-            ))}
+              <span style={{ fontSize: 20 }}>⚡</span>
+            </div>
+
+            {/* Profile Photo Area */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(124,58,237,0.3)', padding: 3, background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {viewTeacher.photo_url ? (
+                    <img src={viewTeacher.photo_url} alt={viewTeacher.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: 32, fontWeight: 800, color: 'rgba(255,255,255,0.15)' }}>
+                      {viewTeacher.name ? viewTeacher.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'TF'}
+                    </span>
+                  )}
+                </div>
+                {/* Upload Photo Button Overlay */}
+                <label style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--accent-purple)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', border: '2px solid #0f172a' }}>
+                  <span style={{ fontSize: 12 }}>📷</span>
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                </label>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                {uploadingPhoto ? 'Uploading photo...' : 'Click camera to change photo'}
+              </span>
+            </div>
+
+            {/* Card Info Fields Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Full Name</span>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{viewTeacher.name}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Staff ID</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'monospace' }}>{viewTeacher.auto_id || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Designation / Role</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>{viewTeacher.role || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Phone Number</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewTeacher.phone || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch Assigned</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewTeacher.branches?.name || 'No Branch'}</div>
+              </div>
+              <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Status</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: (viewTeacher.active ?? true) ? '#34D399' : '#F87171' }}>
+                  {(viewTeacher.active ?? true) ? 'Active Faculty' : 'Inactive / Disabled'}
+                </div>
+              </div>
+            </div>
+
+            {/* Simulated ID Card Barcode */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.45, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 2, height: 24, width: '100%', maxWidth: 200, background: '#fff', padding: '3px 10px', borderRadius: 4, alignItems: 'center', justifyContent: 'center' }}>
+                {[1, 4, 2, 1, 3, 1, 4, 1, 2, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1].map((w, i) => (
+                  <div key={i} style={{ width: w, height: '100%', background: '#000', flexShrink: 0 }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>*TF-{viewTeacher.id.slice(0, 8).toUpperCase()}*</span>
+            </div>
+
             <button
               onClick={() => setViewTeacher(null)}
-              style={{ width: '100%', marginTop: 10, padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+              style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'background 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
             >Close Details</button>
           </div>
         </div>

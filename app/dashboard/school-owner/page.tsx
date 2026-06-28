@@ -57,6 +57,33 @@ export default function SchoolOwnerDashboard() {
     setLoading(false)
   }
 
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoMsg, setLogoMsg] = useState('')
+
+  async function handleLogoUpload(e: any) {
+    const file = e.target.files[0]
+    if (!file) return
+    setLogoUploading(true)
+    setLogoMsg('')
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64 = reader.result as string
+        const { error } = await supabase
+          .from('schools')
+          .update({ logo_url: base64 })
+          .eq('id', school.id)
+        if (error) throw error
+        setSchool({ ...school, logo_url: base64 })
+        setLogoMsg('Logo successfully updated!')
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      setLogoMsg('Error: ' + err.message)
+    }
+    setLogoUploading(false)
+  }
+
   const statCards = [
     { label: 'Branches', value: stats.branches, color: '#7C3AED', icon: Building2 },
     { label: 'Teachers', value: stats.teachers, color: '#10B981', icon: Users },
@@ -80,9 +107,32 @@ export default function SchoolOwnerDashboard() {
       activePath="/dashboard/school-owner"
       onRefresh={fetchData}
     >
-      <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)" }}>Welcome, {ownerName} 👋</h2>
-        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px" }}>Here is your school overview.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h2 style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)" }}>Welcome, {ownerName} 👋</h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px" }}>Here is your school overview.</p>
+        </div>
+
+        {/* School Logo Upload Card */}
+        {school && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: '10px 16px' }}>
+            <div style={{ width: 42, height: 42, borderRadius: 8, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+              {school.logo_url ? (
+                <img src={school.logo_url} alt="School Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <span style={{ fontSize: 20 }}>🎓</span>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{school.name} Logo</div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-purple)', cursor: 'pointer', display: 'block', marginTop: 2 }}>
+                {logoUploading ? 'Uploading...' : 'Change Logo'}
+                <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+              </label>
+              {logoMsg && <div style={{ fontSize: 10, color: logoMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginTop: 2 }}>{logoMsg}</div>}
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (

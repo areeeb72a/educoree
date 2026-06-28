@@ -44,9 +44,83 @@ export default function AdminDashboard() {
   const [resetError, setResetError] = useState('')
   const [resettingUser, setResettingUser] = useState(false)
 
+  // notice ticker tab state
+  const [tickerText, setTickerText] = useState('')
+  const [tickerColor, setTickerColor] = useState('#ffffff')
+  const [tickerBg, setTickerBg] = useState('#DC2626')
+  const [tickerFontSize, setTickerFontSize] = useState('14px')
+  const [tickerDirection, setTickerDirection] = useState('ltr')
+  const [tickerFontFamily, setTickerFontFamily] = useState('system-ui')
+  const [tickerActive, setTickerActive] = useState(true)
+  const [savingTicker, setSavingTicker] = useState(false)
+  const [tickerMsg, setTickerMsg] = useState('')
+
   useEffect(() => { fetchData() }, [])
   useEffect(() => { if (activeTab === 'staff' && !staffLoaded) fetchStaff() }, [activeTab])
   useEffect(() => { if (activeTab === 'reset-password') fetchResetUsers() }, [activeTab, profile])
+  useEffect(() => { if (activeTab === 'notice-ticker') fetchTicker() }, [activeTab, profile])
+
+  async function fetchTicker() {
+    if (!profile?.school_id) return
+    const { data, error } = await supabase
+      .from('school_tickers')
+      .select('*')
+      .eq('school_id', profile.school_id)
+      .maybeSingle()
+    if (!error && data) {
+      setTickerText(data.text)
+      setTickerColor(data.color)
+      setTickerBg(data.bg_color)
+      setTickerFontSize(data.font_size)
+      setTickerDirection(data.direction)
+      setTickerFontFamily(data.font_family)
+      setTickerActive(data.active)
+    }
+  }
+
+  async function saveTicker() {
+    if (!profile?.school_id) return
+    setSavingTicker(true)
+    setTickerMsg('')
+    try {
+      const { data: existing } = await supabase
+        .from('school_tickers')
+        .select('id')
+        .eq('school_id', profile.school_id)
+        .maybeSingle()
+
+      const payload = {
+        school_id: profile.school_id,
+        text: tickerText,
+        color: tickerColor,
+        bg_color: tickerBg,
+        font_size: tickerFontSize,
+        direction: tickerDirection,
+        font_family: tickerFontFamily,
+        active: tickerActive
+      }
+
+      let error;
+      if (existing) {
+        const { error: err } = await supabase
+          .from('school_tickers')
+          .update(payload)
+          .eq('id', existing.id)
+        error = err
+      } else {
+        const { error: err } = await supabase
+          .from('school_tickers')
+          .insert(payload)
+        error = err
+      }
+
+      if (error) throw error
+      setTickerMsg('Success: Notice ticker has been telecast globally!')
+    } catch (err: any) {
+      setTickerMsg('Error: ' + err.message + ' (Note: Make sure to run the Supabase database migration for school_tickers table)')
+    }
+    setSavingTicker(false)
+  }
 
   async function fetchResetUsers() {
     if (!profile?.school_id) return
@@ -577,7 +651,7 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const tabs = ['overview', 'staff', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password']
+  const tabs = ['overview', 'staff', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
   const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
@@ -603,7 +677,7 @@ export default function AdminDashboard() {
               borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
               transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
             }}>
-            {tab === 'reset-password' ? '🔑 Reset Password' : tab}
+            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab}
           </button>
         ))}
       </div>
@@ -1289,6 +1363,128 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'notice-ticker' && (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, maxWidth: 650 }}>
+              <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)', fontSize: 18 }}>📣 Notice Ticker Settings</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Configure the scrolling notice bar that will appear at the very top of all portals for your school.</p>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Ticker Text (English and/or Urdu)</label>
+                <textarea
+                  placeholder="Enter scrolling notice here (Urdu text is fully supported, e.g. کل سکول بند رہے گا)..."
+                  value={tickerText}
+                  onChange={e => setTickerText(e.target.value)}
+                  style={{ width: '100%', height: 90, padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, fontSize: 13, color: 'var(--text-primary)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Text Direction / Language</label>
+                  <select
+                    value={tickerDirection}
+                    onChange={e => setTickerDirection(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value="ltr">English (Left to Right)</option>
+                    <option value="rtl">Urdu (Right to Left)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Font Style</label>
+                  <select
+                    value={tickerFontFamily}
+                    onChange={e => setTickerFontFamily(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value="system-ui">Modern Sans (default)</option>
+                    <option value="'Inter', sans-serif">Inter</option>
+                    <option value="'Raleway', sans-serif">Raleway</option>
+                    <option value="'Jameel Noori Nastaleeq', cursive, Arial">Nastaleeq (Urdu font)</option>
+                    <option value="monospace">Monospace</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Text Color</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={tickerColor}
+                      onChange={e => setTickerColor(e.target.value)}
+                      style={{ width: 36, height: 36, border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={tickerColor}
+                      onChange={e => setTickerColor(e.target.value)}
+                      style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Background Color</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={tickerBg}
+                      onChange={e => setTickerBg(e.target.value)}
+                      style={{ width: 36, height: 36, border: 'none', padding: 0, background: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="text"
+                      value={tickerBg}
+                      onChange={e => setTickerBg(e.target.value)}
+                      style={{ width: '100%', padding: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Font Size</label>
+                  <select
+                    value={tickerFontSize}
+                    onChange={e => setTickerFontSize(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value="12px">Small (12px)</option>
+                    <option value="14px">Normal (14px)</option>
+                    <option value="16px">Medium (16px)</option>
+                    <option value="18px">Large (18px)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <input
+                  type="checkbox"
+                  id="tickerActive"
+                  checked={tickerActive}
+                  onChange={e => setTickerActive(e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+                <label htmlFor="tickerActive" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer' }}>
+                  Enable Telecast (Show this notice to all portals)
+                </label>
+              </div>
+
+              {tickerMsg && (
+                <div style={{ fontSize: 13, color: tickerMsg.startsWith('Error') ? '#F87171' : '#34D399', marginBottom: 16 }}>
+                  {tickerMsg}
+                </div>
+              )}
+
+              <button
+                onClick={saveTicker}
+                disabled={savingTicker}
+                style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+              >
+                {savingTicker ? '⏳ Telecasting...' : '📣 Telecast Ticker Globally'}
+              </button>
             </div>
           )}
         </>

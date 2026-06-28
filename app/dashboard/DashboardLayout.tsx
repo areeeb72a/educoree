@@ -67,6 +67,8 @@ export default function DashboardLayout({
   const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
   const [schoolName, setSchoolName] = useState("");
+  const [schoolLogo, setSchoolLogo] = useState("");
+  const [ticker, setTicker] = useState<any>(null);
 
   // Voluntary password change states
   const [newPw, setNewPw] = useState("");
@@ -113,7 +115,7 @@ export default function DashboardLayout({
         setUserEmail(user.email || "");
         const { data: profile } = await supabase
           .from("profiles")
-          .select("*, schools(name)")
+          .select("*, schools(name, logo_url)")
           .eq("id", user.id)
           .single();
         
@@ -121,6 +123,16 @@ export default function DashboardLayout({
           setUserName(profile.name || "");
           if (profile.schools) {
             setSchoolName(profile.schools.name || "");
+            setSchoolLogo(profile.schools.logo_url || "");
+          }
+          if (profile.school_id) {
+            const { data: tickerData } = await supabase
+              .from('school_tickers')
+              .select('*')
+              .eq('school_id', profile.school_id)
+              .eq('active', true)
+              .maybeSingle()
+            if (tickerData) setTicker(tickerData)
           }
         }
       }
@@ -884,17 +896,34 @@ export default function DashboardLayout({
               gap: "10px",
               borderBottom: "1px solid var(--border-subtle)"
             }}>
-              <div className="logo-icon" style={{
-                width: "36px", height: "36px",
-                background: "linear-gradient(135deg, #7C3AED, #6366F1)",
-                borderRadius: "10px",
-                display: "flex", alignItems: "center",
-                fontSize: "18px",
-                boxShadow: "0 4px 16px rgba(124,58,237,0.3)",
-                flexShrink: 0,
-                justifyContent: "center",
-                color: "#fff"
-              }}>🎓</div>
+              {schoolLogo ? (
+                <img
+                  src={schoolLogo}
+                  alt="School Logo"
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "10px",
+                    objectFit: "contain",
+                    background: "#fff",
+                    padding: "2px",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                    flexShrink: 0
+                  }}
+                />
+              ) : (
+                <div className="logo-icon" style={{
+                  width: "36px", height: "36px",
+                  background: "linear-gradient(135deg, #7C3AED, #6366F1)",
+                  borderRadius: "10px",
+                  display: "flex", alignItems: "center",
+                  fontSize: "18px",
+                  boxShadow: "0 4px 16px rgba(124,58,237,0.3)",
+                  flexShrink: 0,
+                  justifyContent: "center",
+                  color: "#fff"
+                }}>🎓</div>
+              )}
               <div>
                 <div className="logo-text" style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>{finalSchoolName}</div>
                 <div className="logo-badge" style={{
@@ -1021,6 +1050,44 @@ export default function DashboardLayout({
             overflowY: "auto",
             maxHeight: "100vh"
           }}>
+            {/* Global Notice Ticker */}
+            {ticker && (
+              <div style={{
+                background: ticker.bg_color || '#DC2626',
+                color: ticker.color || '#ffffff',
+                padding: '8px 16px',
+                fontSize: ticker.font_size || '14px',
+                fontFamily: ticker.font_family || 'system-ui',
+                direction: ticker.direction === 'rtl' ? 'rtl' : 'ltr',
+                overflow: 'hidden',
+                position: 'relative',
+                whiteSpace: 'nowrap',
+                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                flexShrink: 0,
+                zIndex: 60
+              }}>
+                <style>{`
+                  @keyframes marquee {
+                    0% { transform: translate3d(${ticker.direction === 'rtl' ? '-100%' : '100%'}, 0, 0); }
+                    100% { transform: translate3d(${ticker.direction === 'rtl' ? '100%' : '-100%'}, 0, 0); }
+                  }
+                  .marquee-content {
+                    display: inline-block;
+                    padding-left: ${ticker.direction === 'rtl' ? '0' : '20px'};
+                    padding-right: ${ticker.direction === 'rtl' ? '20px' : '0'};
+                    animation: marquee 20s linear infinite;
+                  }
+                  .marquee-content:hover {
+                    animation-play-state: paused;
+                  }
+                `}</style>
+                <div className="marquee-content">
+                  {ticker.text}
+                </div>
+              </div>
+            )}
+
             {/* Top Header Bar */}
             <header className="topbar" style={{
               position: "sticky", top: 0, zIndex: 50,

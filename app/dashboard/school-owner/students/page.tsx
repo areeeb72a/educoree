@@ -25,6 +25,7 @@ type Student = {
   discount_pct: number | null
   emergency_phone: string | null
   active: boolean | null
+  photo_url?: string | null
   branches?: { name: string } | null
   guardians?: { name: string; gr_number: string; phone: string } | null
 }
@@ -46,8 +47,35 @@ export default function StudentsManagement() {
   const [editForm, setEditForm] = useState({ name: '', grade: '', section: '', branch_id: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => { fetchData() }, [])
+
+  async function handlePhotoUpload(e: any) {
+    if (!viewStudent) return
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64 = reader.result as string
+        const { error } = await supabase
+          .from('students')
+          .update({ photo_url: base64 })
+          .eq('id', viewStudent.id)
+        if (error) throw error
+        
+        const updatedStudent = { ...viewStudent, photo_url: base64 }
+        setViewStudent(updatedStudent)
+        setStudents(prev => prev.map(s => s.id === viewStudent.id ? updatedStudent : s))
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      alert('Photo upload failed: ' + err.message)
+    }
+    setUploadingPhoto(false)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -66,7 +94,7 @@ export default function StudentsManagement() {
     const [sRes, bRes] = await Promise.all([
       supabase
         .from('students')
-        .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, branches(name), guardians(name, gr_number, phone)')
+        .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, branches(name), guardians(name, gr_number, phone)')
         .eq('school_id', schoolId)
         .order('grade')
         .order('name'),
@@ -296,32 +324,90 @@ export default function StudentsManagement() {
         )}
       </div>
 
-      {/* View Student Modal */}
+      {/* View Student Modal (Premium ID Card style) */}
       {viewStudent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400 }}>
-            <h3 style={{ margin: '0 0 20px', color: 'var(--text-primary)', fontSize: 18, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>Student Details</h3>
-            {[
-              ['Full Name', viewStudent.name || '—'],
-              ['Student ID', viewStudent.auto_id || '—'],
-              ['Date of Birth', viewStudent.dob || '—'],
-              ['Blood Group', viewStudent.blood_group || '—'],
-              ['Grade & Section', `Grade ${viewStudent.grade || '—'} - ${viewStudent.section || 'A'}`],
-              ['Branch', viewStudent.branches?.name || '—'],
-              ['Guardian Name', viewStudent.guardians?.name || '—'],
-              ['Guardian GR', viewStudent.guardians?.gr_number || '—'],
-              ['Guardian Phone', viewStudent.guardians?.phone || '—'],
-              ['Discount Ratio', `${viewStudent.discount_pct || 0}%`],
-              ['Status', (viewStudent.active ?? true) ? 'Active' : 'Inactive'],
-            ].map(([k, v]) => (
-              <div key={k} style={{ marginBottom: 12 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>{k}</span>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{v}</div>
+          <div style={{ background: 'linear-gradient(145deg, #0f172a, #1e293b)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', overflow: 'hidden', position: 'relative' }}>
+            
+            {/* ID Card Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 14, marginBottom: 18 }}>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent-purple)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>EduCore ID System</span>
+                <h4 style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 700, color: '#fff' }}>STUDENT ID CARD</h4>
               </div>
-            ))}
+              <span style={{ fontSize: 20 }}>⚡</span>
+            </div>
+
+            {/* Profile Photo Area */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(124,58,237,0.3)', padding: 3, background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {viewStudent.photo_url ? (
+                    <img src={viewStudent.photo_url} alt={viewStudent.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: 32, fontWeight: 800, color: 'rgba(255,255,255,0.15)' }}>
+                      {viewStudent.name ? viewStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST'}
+                    </span>
+                  )}
+                </div>
+                {/* Upload Photo Button Overlay */}
+                <label style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--accent-purple)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', border: '2px solid #0f172a' }}>
+                  <span style={{ fontSize: 12 }}>📷</span>
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                </label>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                {uploadingPhoto ? 'Uploading photo...' : 'Click camera to change photo'}
+              </span>
+            </div>
+
+            {/* Card Info Fields Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Full Name</span>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{viewStudent.name}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Student ID</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'monospace' }}>{viewStudent.auto_id || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Class & Section</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Grade {viewStudent.grade || '—'} - {viewStudent.section || 'A'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Blood Group</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#FCA5A5' }}>{viewStudent.blood_group || '—'}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewStudent.branches?.name || '—'}</div>
+              </div>
+              <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Name & GR</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.name || '—'} (GR: {viewStudent.guardians?.gr_number || '—'})</div>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Phone</span>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.phone || '—'}</div>
+              </div>
+            </div>
+
+            {/* Simulated ID Card Barcode */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.45, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 2, height: 24, width: '100%', maxWidth: 200, background: '#fff', padding: '3px 10px', borderRadius: 4, alignItems: 'center', justifyContent: 'center' }}>
+                {[1, 3, 1, 2, 4, 1, 3, 2, 1, 4, 2, 1, 3, 1, 2, 1, 4, 1, 2].map((w, i) => (
+                  <div key={i} style={{ width: w, height: '100%', background: '#000', flexShrink: 0 }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>*ST-{viewStudent.id.slice(0, 8).toUpperCase()}*</span>
+            </div>
+
             <button
               onClick={() => setViewStudent(null)}
-              style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+              style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'background 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
             >Close Details</button>
           </div>
         </div>
