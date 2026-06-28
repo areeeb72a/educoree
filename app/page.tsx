@@ -133,6 +133,7 @@ export default function LoginPage() {
           <img src="/school_login_bg.png" alt="School Login Background" className="kb-0" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
         <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(160deg, rgba(6,11,24,0.85) 0%, rgba(5,150,105,0.65) 60%, rgba(6,11,24,0.9) 100%)' }}></div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '40%', zIndex: 2, background: 'linear-gradient(to top, rgba(6,11,24,0.95) 0%, transparent 100%)' }}></div>
         
         {/* Left top brand info */}
         <div style={{ position: 'relative', zIndex: 3, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -157,7 +158,7 @@ export default function LoginPage() {
         <div style={{ width: '100%', maxWidth: 360, position: 'relative', zIndex: 1 }}>
           
           <div style={{ marginBottom: '2.25rem' }}>
-            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, fontWeight: 700, color: '#fff', lineHeight: 1.1, marginBottom: 10 }}>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 38, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 10 }}>
               Good to see<br />
               <span style={{ color: '#34D399' }}>you again.</span>
             </p>
