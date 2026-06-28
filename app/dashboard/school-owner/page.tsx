@@ -98,6 +98,7 @@ export default function SchoolOwnerDashboard() {
     { title: 'Students', desc: 'Students database with filters', href: '/dashboard/school-owner/students', icon: GraduationCap, color: '#0891B2' },
     { title: 'Fee Overview', desc: 'Fees, records and branch totals', href: '/dashboard/school-owner/fees', icon: Wallet, color: '#059669' },
     { title: 'Attendance Overview', desc: 'School-wide attendance reports', href: '/dashboard/school-owner/attendance-overview', icon: ClipboardList, color: '#D97706' },
+    { title: 'Appraisals', desc: 'Review & approve teacher appraisals', href: '/dashboard/school-owner/appraisal', icon: BarChart3, color: '#8B5CF6' },
     { title: 'Reports & Analytics', desc: 'Trends, charts and insights', href: '/dashboard/school-owner/analytics', icon: BarChart3, color: '#6366F1' },
   ]
 

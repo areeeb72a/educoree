@@ -30,6 +30,7 @@ export default function AdminDashboard() {
     name: '', email: '', password: '', role: 'teacher', phone: '',
     father_name: '', address: '', blood_group: '', emergency_name: '',
     emergency_phone: '', joining_date: '', photo_url: '',
+    nic_number: '', subject_specialization: ''
   })
   const [formError, setFormError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
@@ -479,7 +480,7 @@ export default function AdminDashboard() {
     setStaffLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, name, role, phone, joining_date, active, auto_id, branch_id, photo_url')
+      .select('id, name, role, phone, joining_date, active, auto_id, branch_id, photo_url, nic_number, subject_specialization')
       .eq('school_id', profile.school_id)
       .neq('role', 'student')
       .order('name')
@@ -497,6 +498,7 @@ export default function AdminDashboard() {
       name: '', email: '', password: '', role: 'teacher', phone: '',
       father_name: '', address: '', blood_group: '', emergency_name: '',
       emergency_phone: '', joining_date: '', photo_url: '',
+      nic_number: '', subject_specialization: ''
     })
     setFormError('')
   }
@@ -1078,6 +1080,12 @@ export default function AdminDashboard() {
                     <input placeholder="Father's Name" type="text" value={formData.father_name} onChange={e => updateForm('father_name', e.target.value)}
                       style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
                     
+                    <input placeholder="NIC # (e.g. 42101-1234567-1)" type="text" value={formData.nic_number} onChange={e => updateForm('nic_number', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Subject Specialization (e.g. Mathematics)" type="text" value={formData.subject_specialization} onChange={e => updateForm('subject_specialization', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                       <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Profile Picture:</label>
                       <input type="file" accept="image/*" onChange={e => {
@@ -1203,6 +1211,14 @@ export default function AdminDashboard() {
                       <div>
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch Assigned</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewTeacher.branches?.name || 'No Branch'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Subject Specialization</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewTeacher.subject_specialization || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>NIC Number</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewTeacher.nic_number || '—'}</div>
                       </div>
                       <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Status</span>
