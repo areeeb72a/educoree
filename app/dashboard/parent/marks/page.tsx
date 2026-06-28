@@ -21,12 +21,12 @@ export default function ParentMarksPage() {
   const [guardian, setGuardian] = useState<any>(null);
   const [children, setChildren] = useState<any[]>([]);
   const [selectedChild, setSelectedChild] = useState<string>("");
-  const [results, setResults] = useState<any[]>([]);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [exams, setExams] = useState<any[]>([]);
+  const [examTranscripts, setExamTranscripts] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchGuardianAndChildren(); }, []);
-  useEffect(() => { if (selectedChild) fetchResults(); }, [selectedChild, year]);
+  useEffect(() => { if (selectedChild) fetchExamsAndTranscripts(); }, [selectedChild]);
 
   async function fetchGuardianAndChildren() {
     setLoading(true);
@@ -44,7 +44,7 @@ export default function ParentMarksPage() {
 
     const { data: kids } = await supabase
       .from("students")
-      .select("id, name, grade, section, auto_id")
+      .select("id, name, grade, section, auto_id, school_id")
       .eq("guardian_id", guardianData.id)
       .order("name");
 
@@ -53,44 +53,56 @@ export default function ParentMarksPage() {
     setLoading(false);
   }
 
-  async function fetchResults() {
-    const { data } = await supabase
-      .from("results")
-      .select("subject, term, marks, total_marks, grade, year")
-      .eq("student_id", selectedChild)
-      .eq("year", year)
-      .eq("status", "published")
-      .order("term");
+  async function fetchExamsAndTranscripts() {
+    const kid = children.find(c => c.id === selectedChild);
+    if (!kid) return;
 
-    setResults(data || []);
+    // 1. Fetch published exams for the child's school
+    const { data: publishedExams } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("school_id", kid.school_id)
+      .eq("is_published", true)
+      .order("created_at", { ascending: false });
+
+    const examList = publishedExams || [];
+    setExams(examList);
+
+    // 2. Fetch child's transcript for all published exams
+    const transcriptsMap: Record<string, any[]> = {};
+    for (const exam of examList) {
+      try {
+        const res = await fetch(`/api/exams/transcript?student_id=${selectedChild}&exam_id=${exam.id}`);
+        const result = await res.json();
+        if (result.success) {
+          transcriptsMap[exam.id] = result.transcript || [];
+        }
+      } catch (err) {
+        console.error("Error fetching child transcript:", err);
+      }
+    }
+    setExamTranscripts(transcriptsMap);
   }
 
   const currentChild = children.find(c => c.id === selectedChild);
-  const termOrder = ["Term 1", "Term 2", "Term 3", "Final"];
-  const byTerm: Record<string, any[]> = {};
-  results.forEach(r => {
-    if (!byTerm[r.term]) byTerm[r.term] = [];
-    byTerm[r.term].push(r);
-  });
-  const terms = Object.keys(byTerm).sort((a, b) => termOrder.indexOf(a) - termOrder.indexOf(b));
 
-  function termAverage(records: any[]) {
-    if (!records.length) return 0;
-    const pct = records.reduce((sum, r) => sum + (r.marks / r.total_marks) * 100, 0) / records.length;
-    return Math.round(pct);
+  function calculateExamAverage(records: any[]) {
+    if (!records || !records.length) return 0;
+    const totalPercentage = records.reduce((sum, r) => sum + (r.percentage || 0), 0);
+    return Math.round(totalPercentage / records.length);
   }
 
   return (
     <DashboardLayout
       role="parent"
       activePath="/dashboard/parent/marks"
-      onRefresh={fetchResults}
+      onRefresh={fetchExamsAndTranscripts}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🏆 Child Report Cards</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🏆 Child Academic Report Cards</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-            {currentChild ? `${currentChild.name} · Grade ${currentChild.grade} - Section ${currentChild.section}` : "Loading..."}
+            {currentChild ? `${currentChild.name} · Grade ${currentChild.grade} - Section ${currentChild.section || 'A'}` : "Loading..."}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -100,10 +112,6 @@ export default function ParentMarksPage() {
               {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          <select value={year} onChange={e => setYear(parseInt(e.target.value))}
-            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
-            {[year, year - 1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
         </div>
       </div>
 
@@ -113,45 +121,73 @@ export default function ParentMarksPage() {
         <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Guardian profile not found.</div>
       ) : children.length === 0 ? (
         <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No student profiles linked to this parent account.</div>
-      ) : terms.length === 0 ? (
+      ) : exams.length === 0 ? (
         <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center' }}>
           <Award style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No published report cards for this school year.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No published exam cycles found for this academic year.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {terms.map(term => (
-            <div key={term} className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>{term}</span>
-                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--accent-purple)' }}>{termAverage(byTerm[term])}% Average</span>
+          {exams.map(exam => {
+            const transcript = examTranscripts[exam.id] || [];
+            const average = calculateExamAverage(transcript);
+            return (
+              <div key={exam.id} className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>{exam.title}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>({exam.academic_year})</span>
+                  </div>
+                  {transcript.length > 0 && (
+                    <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--accent-purple)' }}>{average}% Average Score</span>
+                  )}
+                </div>
+
+                {transcript.length === 0 ? (
+                  <p style={{ padding: 20, margin: 0, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Marks for this exam cycle have not been uploaded for this child yet.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Subject</th>
+                          <th style={{ textAlign: 'center' }}>Theory Marks</th>
+                          <th style={{ textAlign: 'center' }}>Practical Marks</th>
+                          <th style={{ textAlign: 'center' }}>Total Marks</th>
+                          <th style={{ textAlign: 'center' }}>Obtained</th>
+                          <th style={{ textAlign: 'center' }}>Grade</th>
+                          <th style={{ textAlign: 'center' }}>Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transcript.map((r, i) => (
+                          <tr key={i} style={{ opacity: r.is_absent ? 0.75 : 1 }}>
+                            <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.subject}</td>
+                            <td style={{ textAlign: 'center' }}>{r.is_absent ? '-' : r.theory_marks}</td>
+                            <td style={{ textAlign: 'center' }}>{r.is_absent ? '-' : r.practical_marks}</td>
+                            <td style={{ textAlign: 'center' }}>{r.total_marks}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {r.is_absent ? 'ABSENT' : `${r.total_obtained} / ${r.total_marks}`}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className={`text-xs px-3 py-1 rounded-full font-bold ${gradeColor[r.grade]?.split(' ')[0] || "text-gray-400"} ${gradeColor[r.grade]?.split(' ')[1] || "bg-gray-500/10"}`}>
+                                {r.grade}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className={`status-badge ${r.status === 'Pass' ? 'active' : 'inactive'}`} style={{ color: r.is_absent ? 'var(--text-muted)' : '' }}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              <div className="table-wrap">
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th>Subject</th>
-                      <th style={{ textAlign: 'center' }}>Marks Obtained</th>
-                      <th style={{ textAlign: 'center' }}>Percentage %</th>
-                      <th style={{ textAlign: 'center' }}>Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byTerm[term].map((r, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.subject}</td>
-                        <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{r.marks} / {r.total_marks}</td>
-                        <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>{Math.round((r.marks / r.total_marks) * 100)}%</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={`text-xs px-3 py-1 rounded-full font-bold ${gradeColor[r.grade]?.split(' ')[0] || "text-gray-400"} ${gradeColor[r.grade]?.split(' ')[1] || "bg-gray-500/10"}`}>{r.grade}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </DashboardLayout>

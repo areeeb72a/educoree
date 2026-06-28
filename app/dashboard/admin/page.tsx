@@ -11,6 +11,8 @@ const supabase = createClient(
 )
 
 const CHRONIC_THRESHOLD = 75 // %
+const EXAM_TYPES = ['Quiz', 'Class Test', 'Mid-Term', 'Final Exam']
+const SUBJECTS_LIST = ['Maths', 'Science', 'English', 'Urdu', 'Islamiyat', 'Computer Science']
 
 export default function AdminDashboard() {
   const [profile, setProfile] = useState<any>(null)
@@ -60,6 +62,7 @@ export default function AdminDashboard() {
   useEffect(() => { if (activeTab === 'reset-password') fetchResetUsers() }, [activeTab, profile])
   useEffect(() => { if (activeTab === 'notice-ticker') fetchTicker() }, [activeTab, profile])
   useEffect(() => { if (activeTab === 'students' && !studentsLoaded) fetchStudents() }, [activeTab])
+  useEffect(() => { if (activeTab === 'exams' && !examsLoaded) fetchExams() }, [activeTab, profile])
 
   // students tab states
   const [studentsList, setStudentsList] = useState<any[]>([])
@@ -209,6 +212,131 @@ export default function AdminDashboard() {
       setStudentMsg('Error: ' + err.message)
     }
     setSavingStudent(false)
+  }
+
+  // exams management states
+  const [examsList, setExamsList] = useState<any[]>([])
+  const [examsLoading, setExamsLoading] = useState(false)
+  const [examsLoaded, setExamsLoaded] = useState(false)
+  const [selectedExam, setSelectedExam] = useState<any | null>(null)
+  const [papersList, setPapersList] = useState<any[]>([])
+  const [papersLoading, setPapersLoading] = useState(false)
+  const [showCreateExam, setShowCreateExam] = useState(false)
+  const [showCreatePaper, setShowCreatePaper] = useState(false)
+  const [examForm, setExamForm] = useState({ title: '', exam_type: 'Final Exam', academic_year: '2025-2026' })
+  const [paperForm, setPaperForm] = useState({ subject: 'Maths', grade: '1', section: 'A', exam_date: '', start_time: '', duration_minutes: '120', total_marks: '100', passing_marks: '40' })
+  const [examMsg, setExamMsg] = useState('')
+  const [savingExam, setSavingExam] = useState(false)
+
+  async function fetchExams() {
+    if (!profile?.school_id) return
+    setExamsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('exams')
+        .select('*')
+        .eq('school_id', profile.school_id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setExamsList(data || [])
+      setExamsLoaded(true)
+    } catch (err: any) {
+      console.error('Error fetching exams:', err.message)
+    }
+    setExamsLoading(false)
+  }
+
+  async function fetchPapers(examId: string) {
+    setPapersLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('exam_papers')
+        .select('*')
+        .eq('exam_id', examId)
+        .order('exam_date')
+      if (error) throw error
+      setPapersList(data || [])
+    } catch (err: any) {
+      console.error('Error fetching papers:', err.message)
+    }
+    setPapersLoading(false)
+  }
+
+  async function handleCreateExam() {
+    setExamMsg('')
+    if (!examForm.title.trim()) { setExamMsg('Error: Exam Title is required'); return }
+    setSavingExam(true)
+    try {
+      const { data, error } = await supabase
+        .from('exams')
+        .insert({
+          school_id: profile.school_id,
+          title: examForm.title,
+          exam_type: examForm.exam_type,
+          academic_year: examForm.academic_year,
+          is_published: false
+        })
+        .select()
+        .single()
+      if (error) throw error
+      setExamMsg('Success: Exam configuration created successfully!')
+      setExamForm({ title: '', exam_type: 'Final Exam', academic_year: '2025-2026' })
+      setShowCreateExam(false)
+      fetchExams()
+    } catch (err: any) {
+      setExamMsg('Error: ' + err.message)
+    }
+    setSavingExam(false)
+  }
+
+  async function handleCreatePaper() {
+    setExamMsg('')
+    if (!selectedExam) return
+    if (!paperForm.exam_date || !paperForm.start_time) { setExamMsg('Error: Date and Start Time are required'); return }
+    
+    const tot = Number(paperForm.total_marks || 100)
+    const pas = Number(paperForm.passing_marks || 40)
+    if (pas > tot) { setExamMsg('Error: Passing marks cannot exceed total marks'); return }
+
+    setSavingExam(true)
+    try {
+      const { error } = await supabase
+        .from('exam_papers')
+        .insert({
+          exam_id: selectedExam.id,
+          school_id: profile.school_id,
+          grade: paperForm.grade,
+          section: paperForm.section || null,
+          subject: paperForm.subject,
+          exam_date: paperForm.exam_date,
+          start_time: paperForm.start_time,
+          duration_minutes: Number(paperForm.duration_minutes || 120),
+          total_marks: tot,
+          passing_marks: pas
+        })
+      if (error) throw error
+      setExamMsg('Success: Exam Paper scheduled successfully!')
+      setPaperForm({ subject: 'Maths', grade: '1', section: 'A', exam_date: '', start_time: '', duration_minutes: '120', total_marks: '100', passing_marks: '40' })
+      setShowCreatePaper(false)
+      fetchPapers(selectedExam.id)
+    } catch (err: any) {
+      setExamMsg('Error: ' + err.message)
+    }
+    setSavingExam(false)
+  }
+
+  async function handleTogglePublishExam(exam: any) {
+    const nextVal = !exam.is_published
+    const { error } = await supabase
+      .from('exams')
+      .update({ is_published: nextVal })
+      .eq('id', exam.id)
+    if (!error) {
+      setExamsList(prev => prev.map(e => e.id === exam.id ? { ...e, is_published: nextVal } : e))
+      if (selectedExam?.id === exam.id) {
+        setSelectedExam({ ...selectedExam, is_published: nextVal })
+      }
+    }
   }
 
   async function fetchTicker() {
@@ -1416,6 +1544,207 @@ export default function AdminDashboard() {
                         {savingStudent ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'exams' && (
+            <div>
+              {!selectedExam ? (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>School Exams Master Control</span>
+                    <button onClick={() => { setShowCreateExam(!showCreateExam); setExamMsg('') }}
+                      style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                      {showCreateExam ? '✕ Cancel' : '+ Configure Exam'}
+                    </button>
+                  </div>
+
+                  {showCreateExam && (
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Configure New Examination</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Exam Title *</label>
+                          <input placeholder="e.g. Final Term Examination 2026" type="text" value={examForm.title} onChange={e => setExamForm({ ...examForm, title: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Exam Type *</label>
+                          <select value={examForm.exam_type} onChange={e => setExamForm({ ...examForm, exam_type: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                            {EXAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Academic Year *</label>
+                          <input placeholder="e.g. 2025-2026" type="text" value={examForm.academic_year} onChange={e => setExamForm({ ...examForm, academic_year: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+
+                      {examMsg && <div style={{ fontSize: 12, color: examMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginBottom: 12 }}>{examMsg}</div>}
+
+                      <button onClick={handleCreateExam} disabled={savingExam}
+                        style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: savingExam ? 0.6 : 1 }}>
+                        {savingExam ? 'Configuring...' : 'Create Exam'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Exams Grid */}
+                  {examsLoading ? (
+                    <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading exams...</p>
+                  ) : examsList.length === 0 ? (
+                    <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, color: 'var(--text-muted)' }}>
+                      No exams configured yet. Click "Configure Exam" to schedule your first examination cycle.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      {examsList.map(exam => (
+                        <div key={exam.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>
+                          <div>
+                            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(124,58,237,0.1)', color: 'var(--accent-purple)', padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase' }}>
+                              {exam.exam_type}
+                            </span>
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: '8px 0 4px' }}>{exam.title}</h3>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Academic Year: {exam.academic_year}</span>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: 12, marginTop: 4 }}>
+                            <span style={{ fontSize: 12, color: exam.is_published ? 'var(--accent-emerald)' : 'var(--text-muted)', fontWeight: 600 }}>
+                              {exam.is_published ? '🟢 Published / Public' : '🛑 Unpublished Draft'}
+                            </span>
+                            <button onClick={() => { setSelectedExam(exam); fetchPapers(exam.id) }}
+                              style={{ padding: '8px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}>
+                              Manage Papers →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  {/* Selected Exam Dashboard */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <button onClick={() => setSelectedExam(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 4 }}>
+                        ← Back to Exams List
+                      </button>
+                      <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{selectedExam.title}</h3>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => handleTogglePublishExam(selectedExam)}
+                        style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: selectedExam.is_published ? 'var(--accent-amber)' : 'var(--accent-emerald)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                        {selectedExam.is_published ? '🛑 Unpublish Results' : '📢 Publish Results'}
+                      </button>
+                      <button onClick={() => { setShowCreatePaper(!showCreatePaper); setExamMsg('') }}
+                        style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                        {showCreatePaper ? '✕ Cancel' : '+ Schedule Paper'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {showCreatePaper && (
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Schedule Exam Paper</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Subject *</label>
+                          <select value={paperForm.subject} onChange={e => setPaperForm({ ...paperForm, subject: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                            {SUBJECTS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Grade *</label>
+                          <select value={paperForm.grade} onChange={e => setPaperForm({ ...paperForm, grade: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                            {['1','2','3','4','5','6','7','8','9','10'].map(g => <option key={g} value={g}>Grade {g}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Section</label>
+                          <input placeholder="e.g. A" type="text" value={paperForm.section} onChange={e => setPaperForm({ ...paperForm, section: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Exam Date *</label>
+                          <input type="date" value={paperForm.exam_date} onChange={e => setPaperForm({ ...paperForm, exam_date: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Start Time *</label>
+                          <input type="time" value={paperForm.start_time} onChange={e => setPaperForm({ ...paperForm, start_time: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Duration (minutes)</label>
+                          <input type="number" value={paperForm.duration_minutes} onChange={e => setPaperForm({ ...paperForm, duration_minutes: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Total Marks</label>
+                          <input type="number" value={paperForm.total_marks} onChange={e => setPaperForm({ ...paperForm, total_marks: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Passing Marks</label>
+                          <input type="number" value={paperForm.passing_marks} onChange={e => setPaperForm({ ...paperForm, passing_marks: e.target.value })}
+                            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+
+                      {examMsg && <div style={{ fontSize: 12, color: examMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginBottom: 12 }}>{examMsg}</div>}
+
+                      <button onClick={handleCreatePaper} disabled={savingExam}
+                        style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: savingExam ? 0.6 : 1 }}>
+                        {savingExam ? 'Scheduling...' : 'Schedule Paper'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Scheduled Papers Table */}
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                    {papersLoading ? (
+                      <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading scheduled papers...</p>
+                    ) : papersList.length === 0 ? (
+                      <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No papers scheduled for this exam yet.</p>
+                    ) : (
+                      <div className="table-wrap">
+                        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th>Subject</th>
+                              <th>Target Class</th>
+                              <th>Exam Date</th>
+                              <th>Start Time</th>
+                              <th>Duration</th>
+                              <th>Marks Limits</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {papersList.map(paper => (
+                              <tr key={paper.id}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{paper.subject}</td>
+                                <td>Grade {paper.grade} {paper.section ? `- ${paper.section}` : ''}</td>
+                                <td>{paper.exam_date}</td>
+                                <td style={{ fontFamily: 'monospace' }}>{paper.start_time}</td>
+                                <td>{paper.duration_minutes} mins</td>
+                                <td>
+                                  <span style={{ color: 'var(--text-muted)' }}>Total:</span> <strong>{paper.total_marks}</strong> &middot; <span style={{ color: 'var(--text-muted)' }}>Pass:</span> <strong>{paper.passing_marks}</strong>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
