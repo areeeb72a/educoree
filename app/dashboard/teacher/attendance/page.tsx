@@ -1,7 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Users } from "lucide-react";
+import { Users } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -9,9 +11,9 @@ const supabase = createClient(
 );
 
 const STATUS_OPTS = [
-  { value: "present", label: "Present", color: "bg-green-100 text-green-700", activeColor: "bg-green-600 text-white" },
-  { value: "absent", label: "Absent", color: "bg-red-100 text-red-700", activeColor: "bg-red-600 text-white" },
-  { value: "late", label: "Late", color: "bg-yellow-100 text-yellow-700", activeColor: "bg-yellow-600 text-white" },
+  { value: "present", label: "Present", color: "rgba(16,185,129,0.1)", activeColor: "var(--accent-emerald)" },
+  { value: "absent", label: "Absent", color: "rgba(244,63,94,0.1)", activeColor: "var(--accent-rose)" },
+  { value: "late", label: "Late", color: "rgba(245,158,11,0.1)", activeColor: "var(--accent-amber)" },
 ];
 
 export default function TeacherAttendancePage() {
@@ -104,122 +106,126 @@ export default function TeacherAttendancePage() {
   const markedCount = presentCount + absentCount + lateCount;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Gradient header banner */}
-      <div className="bg-gradient-to-r from-teal-700 to-cyan-800 px-4 md:px-6 pt-6 pb-8">
-        <div className="max-w-4xl mx-auto">
-          <a href="/dashboard/teacher" className="inline-flex items-center gap-1 text-sm text-teal-200 hover:text-white mb-3 font-medium">
-            <ArrowLeft size={14} /> Back to Dashboard
-          </a>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2 mb-5">
-            📋 Mark Attendance
-          </h1>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">👥</div>
-              <div className="text-2xl font-extrabold text-white">{markedCount}/{students.length}</div>
-              <div className="text-teal-100 text-xs mt-0.5">Marked</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">✅</div>
-              <div className="text-2xl font-extrabold text-white">{presentCount}</div>
-              <div className="text-teal-100 text-xs mt-0.5">Present</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">❌</div>
-              <div className="text-2xl font-extrabold text-white">{absentCount}</div>
-              <div className="text-teal-100 text-xs mt-0.5">Absent</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">⏰</div>
-              <div className="text-2xl font-extrabold text-white">{lateCount}</div>
-              <div className="text-teal-100 text-xs mt-0.5">Late</div>
-            </div>
-          </div>
+    <DashboardLayout
+      role="teacher"
+      activePath="/dashboard/teacher/attendance"
+      onRefresh={fetchStudentsAndAttendance}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📋 Mark Attendance</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Record and submit class attendance logs.</p>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-4 md:p-6 -mt-2">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <select
-              value={selected ? `${selected.grade}__${selected.section}__${selected.branch_id}` : ""}
-              onChange={e => {
-                const [grade, section, branch_id] = e.target.value.split("__");
-                setSelected(assignments.find(a => a.grade === grade && a.section === section && a.branch_id === branch_id));
-              }}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              {assignments.map((a, i) => (
-                <option key={i} value={`${a.grade}__${a.section}__${a.branch_id}`}>
-                  Grade {a.grade} — Section {a.section}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="date"
-              value={date}
-              max={new Date().toISOString().split("T")[0]}
-              onChange={e => setDate(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-            />
-
-            <div className="flex-1" />
-
-            <button
-              onClick={markAllPresent}
-              className="bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-800 transition-colors"
-            >
-              ✅ Mark All Present
-            </button>
+      {/* Stats Cards */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+        {[
+          { label: "Marked/Total", val: `${markedCount}/${students.length}`, color: "var(--accent-purple)" },
+          { label: "Present Today", val: presentCount, color: "var(--accent-emerald)" },
+          { label: "Absent Today", val: absentCount, color: "var(--accent-rose)" },
+          { label: "Late Today", val: lateCount, color: "var(--accent-amber)" },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{s.label}</div>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center text-gray-400">Loading...</div>
-          ) : students.length === 0 ? (
-            <div className="p-12 text-center">
-              <Users className="mx-auto text-gray-300 mb-3" size={40} />
-              <p className="text-gray-400">
-                {assignments.length === 0 ? "Aapko koi class assign nahi ki gayi" : "Is class mein koi student nahi mila"}
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {students.map((student, i) => {
-                const currentStatus = attendanceMap[student.id];
-                return (
-                  <div key={student.id} className="p-3.5 flex justify-between items-center flex-wrap gap-3 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center text-sm font-bold text-teal-700">
-                        {(student.name || "?").charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-gray-900">{student.name}</div>
-                        <div className="text-xs text-gray-400">Roll #{student.roll_number || i + 1} · {student.auto_id}</div>
-                      </div>
+      {/* Select Control Board */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+          <select
+            value={selected ? `${selected.grade}__${selected.section}__${selected.branch_id}` : ""}
+            onChange={e => {
+              const [grade, section, branch_id] = e.target.value.split("__");
+              setSelected(assignments.find(a => a.grade === grade && a.section === section && a.branch_id === branch_id));
+            }}
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+          >
+            {assignments.map((a, i) => (
+              <option key={i} value={`${a.grade}__${a.section}__${a.branch_id}`}>
+                Grade {a.grade} — Section {a.section}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={date}
+            max={new Date().toISOString().split("T")[0]}
+            onChange={e => setDate(e.target.value)}
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+          />
+
+          <div style={{ flex: 1 }} />
+
+          <button
+            onClick={markAllPresent}
+            style={{ padding: '10px 18px', borderRadius: 10, background: 'var(--accent-emerald)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ✅ Mark All Present
+          </button>
+        </div>
+      </div>
+
+      {/* Student List cards container */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading student profiles...</div>
+        ) : students.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <Users style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+              {assignments.length === 0 ? "No classes assigned to you." : "No active students found in this class."}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {students.map((student, i) => {
+              const currentStatus = attendanceMap[student.id];
+              return (
+                <div key={student.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < students.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: 'var(--accent-purple)' }}>
+                      {(student.name || "?").charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex gap-1.5">
-                      {STATUS_OPTS.map(opt => (
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{student.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Roll #{student.roll_number || i + 1} · {student.auto_id}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {STATUS_OPTS.map(opt => {
+                      const isActive = currentStatus === opt.value;
+                      return (
                         <button
                           key={opt.value}
                           onClick={() => markStatus(student.id, opt.value)}
                           disabled={saving === student.id}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${currentStatus === opt.value ? opt.activeColor : opt.color + " hover:opacity-80"}`}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            background: isActive ? opt.activeColor : opt.color,
+                            color: isActive ? '#fff' : 'var(--text-secondary)'
+                          }}
                         >
                           {opt.label}
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

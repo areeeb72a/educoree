@@ -1,6 +1,9 @@
-﻿"use client";
+"use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { Percent, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -64,93 +67,105 @@ export default function OwnerAttendanceOverview() {
   const todayPct   = todayStats.total ? Math.round((todayStats.present/todayStats.total)*100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-5xl mx-auto">
-
-        <a href="/dashboard/school-owner" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mb-3 font-medium">
-          <span aria-hidden="true">←</span> Back to Dashboard
-        </a>
-
-        <div className="flex justify-between items-start mb-5">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">School Attendance Overview</h1>
-            <p className="text-gray-500 text-sm mt-1">All branches monthly summary</p>
-          </div>
-          <input type="month" value={month} max={new Date().toISOString().slice(0,7)}
-            onChange={e => setMonth(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+    <DashboardLayout
+      role="school-owner"
+      activePath="/dashboard/school-owner/attendance-overview"
+      onRefresh={fetchOverview}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📊 School Attendance Overview</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Daily metrics and monthly summaries across all branch locations.</p>
         </div>
+        <input type="month" value={month} max={new Date().toISOString().slice(0,7)}
+          onChange={e => setMonth(e.target.value)}
+          style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }} />
+      </div>
 
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 mb-5 text-white">
-          <div className="text-sm opacity-80 mb-3 font-medium">Today at a Glance</div>
-          <div className="grid grid-cols-4 gap-4">
-            {[
-              { label: "Attendance %", val: `${todayPct}%` },
-              { label: "Present", val: todayStats.present },
-              { label: "Absent",  val: todayStats.absent },
-              { label: "Late",    val: todayStats.late },
-            ].map(({ label, val }) => (
-              <div key={label}>
-                <div className="text-2xl font-bold">{val}</div>
-                <div className="text-xs opacity-70">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+      {/* Today glance container */}
+      <div style={{ background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))', borderRadius: 16, padding: 22, color: '#fff', marginBottom: 20 }}>
+        <div style={{ fontSize: 12.5, opacity: 0.8, marginBottom: 12, fontWeight: 700, textTransform: 'uppercase' }}>Today at a Glance</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           {[
-            { label: "Monthly %", val: `${overallPct}%`, color: overallPct >= 75 ? "text-green-600" : "text-red-600" },
-            { label: "Present",   val: totals.present,   color: "text-green-600" },
-            { label: "Absent",    val: totals.absent,    color: "text-red-600" },
-            { label: "Late",      val: totals.late,      color: "text-yellow-600" },
-          ].map(({ label, val, color }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
-              <div className={`text-2xl font-bold ${color}`}>{val}</div>
-              <div className="text-xs text-gray-500 mt-1">{label}</div>
+            { label: "Attendance Ratio", val: `${todayPct}%` },
+            { label: "Present count", val: todayStats.present },
+            { label: "Absent count",  val: todayStats.absent },
+            { label: "Late count",    val: todayStats.late },
+          ].map(({ label, val }) => (
+            <div key={label}>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{val}</div>
+              <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{label}</div>
             </div>
           ))}
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-900">Branch-wise Breakdown</h2>
-            <span className="text-xs text-gray-400">{overview.length} branches</span>
-          </div>
-          {loading ? (
-            <div className="p-8 text-center text-gray-400">Loading...</div>
-          ) : overview.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">No data for this month.</div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {overview.map((branch, i) => (
-                <div key={i} className="px-5 py-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <span className="font-medium text-gray-900">{branch.name}</span>
-                      <span className="text-xs text-gray-400 ml-2">
-                        {branch.present}P &middot; {branch.absent}A &middot; {branch.late}L &middot; {branch.total} total
-                      </span>
-                    </div>
-                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${
-                      branch.pct >= 75 ? "bg-green-100 text-green-700" :
-                      branch.pct >= 50 ? "bg-yellow-100 text-yellow-700" :
-                                         "bg-red-100 text-red-700"
-                    }`}>{branch.pct}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ${
-                      branch.pct >= 75 ? "bg-green-500" :
-                      branch.pct >= 50 ? "bg-yellow-500" : "bg-red-500"
-                    }`} style={{ width: `${branch.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
       </div>
-    </div>
+
+      {/* Monthly Stats row */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        {[
+          { label: "Monthly Ratio %", val: `${overallPct}%`, color: overallPct >= 75 ? "var(--accent-emerald)" : "var(--accent-rose)", icon: Percent, name: overallPct >= 75 ? "emerald" : "amber" },
+          { label: "Total Present",   val: totals.present,   color: "var(--accent-emerald)", icon: CheckCircle2, name: "emerald" },
+          { label: "Total Absent",    val: totals.absent,    color: "var(--accent-rose)", icon: XCircle, name: "amber" },
+          { label: "Total Late",      val: totals.late,      color: "var(--accent-amber)", icon: AlertTriangle, name: "cyan" },
+        ].map(({ label, val, color, icon, name }) => {
+          const Icon = icon
+          return (
+            <div key={label} className={`kpi-card ${name}`} style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 14,
+              padding: '18px 20px',
+              borderTop: `3px solid ${color}`,
+              minHeight: 108, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, fontWeight: "600", textTransform: "uppercase" }}>{label}</div>
+                <Icon size={18} style={{ color: color, flexShrink: 0 }} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{val}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Branch wise Breakdown card */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>Branch-wise Breakdown</h3>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{overview.length} BRANCHES</span>
+        </div>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</div>
+        ) : overview.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No attendance logs for this month.</div>
+        ) : (
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {overview.map((branch, i) => (
+              <div key={i}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>{branch.name}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', marginLeft: 8 }}>
+                      ({branch.present} Present · {branch.absent} Absent · {branch.late} Late · {branch.total} Total logs)
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                    background: branch.pct >= 75 ? 'rgba(16,185,129,0.1)' : branch.pct >= 50 ? 'rgba(245,158,11,0.1)' : 'rgba(244,63,94,0.1)',
+                    color: branch.pct >= 75 ? 'var(--accent-emerald)' : branch.pct >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)'
+                  }}>{branch.pct}%</span>
+                </div>
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, overflow: 'hidden', height: 6 }}>
+                  <div style={{
+                    height: '100%', borderRadius: 10, width: `${branch.pct}%`,
+                    background: branch.pct >= 75 ? 'var(--accent-emerald)' : branch.pct >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)'
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
   );
 }

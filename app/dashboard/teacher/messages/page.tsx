@@ -1,7 +1,9 @@
 "use client";
+
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Send, MessageCircle } from "lucide-react";
+import { Send, MessageCircle } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -106,7 +108,6 @@ export default function TeacherMessagesPage() {
     setActiveThread(thread);
     if (thread) {
       await loadMessages(thread.id);
-      // mark teacher's unread as read
       await supabase.from("message_threads").update({ teacher_unread_count: 0 }).eq("id", thread.id);
     }
   }
@@ -152,136 +153,141 @@ export default function TeacherMessagesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Gradient header banner */}
-      <div className="bg-gradient-to-r from-pink-700 to-rose-800 px-4 md:px-6 pt-6 pb-8">
-        <div className="max-w-5xl mx-auto">
-          <a href="/dashboard/teacher" className="inline-flex items-center gap-1 text-sm text-pink-200 hover:text-white mb-3 font-medium">
-            <ArrowLeft size={14} /> Back to Dashboard
-          </a>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2 mb-5">
-            💬 Message Parents
-          </h1>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 max-w-[180px]">
-            <div className="text-xl mb-1">👨‍👩‍👧</div>
-            <div className="text-2xl font-extrabold text-white">{students.length}</div>
-            <div className="text-pink-200 text-xs mt-0.5">Students</div>
-          </div>
+    <DashboardLayout
+      role="teacher"
+      activePath="/dashboard/teacher/messages"
+      onRefresh={fetchTeacherAndStudents}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>💬 Message Parents</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Direct real-time communications channel with student guardians.</p>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 md:p-6 -mt-2">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row" style={{ height: "calc(100vh - 280px)", minHeight: 420 }}>
-          {/* Student list sidebar */}
-          <div className="w-full md:w-72 border-r border-gray-100 flex flex-col">
-            <div className="p-3 border-b border-gray-100">
-              <input
-                type="text"
-                placeholder="🔍 Search student..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="p-6 text-center text-gray-400 text-sm">Loading...</div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="p-6 text-center text-gray-400 text-sm">Koi student nahi mila.</div>
-              ) : (
-                filteredStudents.map(s => {
-                  const thread = threads[s.id];
-                  const isActive = selectedStudent?.id === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelectedStudent(s)}
-                      className={`w-full text-left px-3.5 py-3 border-b border-gray-50 transition-colors flex items-center gap-2.5 ${isActive ? "bg-pink-50" : "hover:bg-gray-50"}`}
-                    >
-                      <div className="w-9 h-9 rounded-full bg-pink-100 flex items-center justify-center text-sm font-bold text-pink-700 flex-shrink-0">
-                        {(s.name || "?").charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 truncate">{s.name}</div>
-                        <div className="text-xs text-gray-400 truncate">
-                          {thread?.last_message || "Koi message nahi"}
-                        </div>
-                      </div>
-                      {thread?.teacher_unread_count > 0 && (
-                        <span className="bg-pink-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                          {thread.teacher_unread_count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden', display: 'flex', height: "calc(100vh - 240px)", minHeight: 460 }}>
+        {/* Sidebar list */}
+        <div style={{ width: 280, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+            <input
+              type="text"
+              placeholder="🔍 Search student..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+            />
           </div>
-
-          {/* Chat area */}
-          <div className="flex-1 flex flex-col">
-            {!selectedStudent ? (
-              <div className="flex-1 flex items-center justify-center flex-col text-gray-400">
-                <MessageCircle size={40} className="mb-3 text-gray-300" />
-                <p className="text-sm">Chat shuru karne ke liye student select karen</p>
-              </div>
-            ) : !selectedStudent.guardian_id ? (
-              <div className="flex-1 flex items-center justify-center flex-col text-gray-400 p-6 text-center">
-                <p className="text-sm">Is student ka guardian record nahi mila. Admin se contact karen.</p>
-              </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>Loading...</div>
+            ) : filteredStudents.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>No student records.</div>
             ) : (
-              <>
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-sm font-bold text-pink-700">
-                    {(selectedStudent.name || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">{selectedStudent.name}'s Parent</div>
-                    <div className="text-xs text-gray-400">Grade {selectedStudent.grade}-{selectedStudent.section}</div>
-                  </div>
-                </div>
+              filteredStudents.map(s => {
+                const thread = threads[s.id];
+                const isActive = selectedStudent?.id === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStudent(s)}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '12px 14px', border: 'none', borderBottom: '1px solid var(--border-subtle)', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                      background: isActive ? 'var(--bg-elevated)' : 'transparent'
+                    }}
+                  >
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'var(--accent-purple)', flexShrink: 0 }}>
+                      {(s.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                        {thread?.last_message || "No messages yet"}
+                      </div>
+                    </div>
+                    {thread?.teacher_unread_count > 0 && (
+                      <span style={{ background: 'var(--accent-purple)', color: '#fff', fontSize: 9.5, fontWeight: 700, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {thread.teacher_unread_count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                  {messages.length === 0 ? (
-                    <div className="text-center text-gray-400 text-sm py-10">Abhi koi message nahi. Pehla message bhejen!</div>
-                  ) : (
-                    messages.map(m => (
-                      <div key={m.id} className={`flex ${m.sender_role === "teacher" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${m.sender_role === "teacher" ? "bg-pink-600 text-white" : "bg-white border border-gray-200 text-gray-800"}`}>
-                          {m.body}
-                          <div className={`text-[10px] mt-1 ${m.sender_role === "teacher" ? "text-pink-100" : "text-gray-400"}`}>
+        {/* Chat area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-elevated)' }}>
+          {!selectedStudent ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)' }}>
+              <MessageCircle size={40} style={{ marginBottom: 12, color: 'var(--text-muted)', opacity: 0.5 }} />
+              <p style={{ fontSize: 13 }}>Select a student guardian from the sidebar to start chat</p>
+            </div>
+          ) : !selectedStudent.guardian_id ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)', padding: 24, textAlign: 'center' }}>
+              <p style={{ fontSize: 13 }}>Guardian profile not linked for this student. Please contact system admin.</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'var(--accent-purple)' }}>
+                  {(selectedStudent.name || "?").charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedStudent.name}'s Guardian</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Grade {selectedStudent.grade}-{selectedStudent.section}</div>
+                </div>
+              </div>
+
+              {/* Message bubbles wrapper */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {messages.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5, padding: '40px 0' }}>No message ledger history. Start chat below!</div>
+                ) : (
+                  messages.map(m => {
+                    const isSelf = m.sender_role === "teacher";
+                    return (
+                      <div key={m.id} style={{ display: 'flex', justifyContent: isSelf ? "flex-end" : "flex-start" }}>
+                        <div style={{
+                          maxWidth: '75%', borderRadius: 14, padding: '10px 14px', fontSize: 13,
+                          background: isSelf ? 'var(--accent-purple)' : 'var(--bg-card)',
+                          color: isSelf ? '#fff' : 'var(--text-primary)',
+                          border: isSelf ? 'none' : '1px solid var(--border-subtle)'
+                        }}>
+                          <div>{m.body}</div>
+                          <div style={{ fontSize: 10, marginTop: 4, color: isSelf ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', textAlign: 'right' }}>
                             {new Date(m.created_at).toLocaleTimeString("en-PK", { hour: "numeric", minute: "2-digit" })}
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
 
-                <div className="p-3 border-t border-gray-100 flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && sendMessage()}
-                    className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  />
-                  <button
-                    onClick={sendMessage}
-                    disabled={sending || !newMessage.trim()}
-                    className="bg-pink-600 text-white rounded-full p-2.5 hover:bg-pink-700 disabled:opacity-50 transition-colors"
-                  >
-                    <Send size={16} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+              {/* Text input area */}
+              <div style={{ padding: 12, background: 'var(--bg-card)', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Type a message here..."
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendMessage()}
+                  style={{ flex: 1, border: '1px solid var(--border-subtle)', borderRadius: 20, padding: '10px 16px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={sending || !newMessage.trim()}
+                  style={{ background: 'var(--accent-purple)', border: 'none', color: '#fff', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', opacity: (sending || !newMessage.trim()) ? 0.5 : 1 }}
+                >
+                  <Send size={15} />
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -1,8 +1,10 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { Users, GraduationCap, BookOpen, ClipboardList, BarChart3, ChevronRight } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Users, GraduationCap, BookOpen, ClipboardList } from 'lucide-react'
+import DashboardLayout from '../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
@@ -153,7 +155,6 @@ export default function PrincipalDashboard() {
     if (!branchId) return
     setClassesLoading(true)
 
-    // 1. Get student counts per grade-section
     const { data: students } = await supabase
       .from('students')
       .select('grade, section')
@@ -166,7 +167,6 @@ export default function PrincipalDashboard() {
       countMap[key] = (countMap[key] || 0) + 1
     })
 
-    // 2. Get class incharges
     const { data: assignments } = await supabase
       .from('teacher_assignments')
       .select('grade, section, teacher_id, is_incharge')
@@ -189,7 +189,6 @@ export default function PrincipalDashboard() {
       if (teacherMap[a.teacher_id]) inchargeMap[key] = teacherMap[a.teacher_id]
     })
 
-    // 3. Build merged class list (union of grade-sections from students and assignments)
     const allKeys = new Set([...Object.keys(countMap), ...Object.keys(inchargeMap)])
     const classes = Array.from(allKeys).map(key => {
       const [grade, section] = key.split('-')
@@ -238,7 +237,6 @@ export default function PrincipalDashboard() {
     !studentSearch || s.name?.toLowerCase().includes(studentSearch.toLowerCase()) || s.auto_id?.toLowerCase().includes(studentSearch.toLowerCase())
   )
 
-  // Nested structure: { "Grade 1": { "A": [students], "B": [students] } }
   const gradeTree: Record<string, Record<string, any[]>> = {}
   filteredStudents.forEach(s => {
     const gradeKey = `Grade ${s.grade}`
@@ -340,7 +338,6 @@ export default function PrincipalDashboard() {
     if (!branchId) return
     setAttLoading(true)
 
-    // 1. All active students in this branch
     const { data: branchStudents } = await supabase
       .from('students')
       .select('id, name, grade, section, roll_number')
@@ -358,7 +355,6 @@ export default function PrincipalDashboard() {
       return
     }
 
-    // 2. Today's attendance
     const today = new Date().toISOString().split('T')[0]
     const { data: todayRecords } = await supabase
       .from('attendance')
@@ -371,7 +367,6 @@ export default function PrincipalDashboard() {
     const late = (todayRecords || []).filter(r => r.status === 'late').length
     setTodayStats({ present, absent, late, total: todayRecords?.length || 0 })
 
-    // 3. Class-wise breakdown for today
     const classMap: Record<string, { grade: string; section: string; present: number; absent: number; late: number; total: number }> = {}
     ;(todayRecords || []).forEach(r => {
       const key = `${r.grade}-${r.section}`
@@ -384,7 +379,6 @@ export default function PrincipalDashboard() {
     const breakdown = Object.values(classMap).sort((a, b) => a.grade.localeCompare(b.grade) || a.section.localeCompare(b.section))
     setClassBreakdown(breakdown)
 
-    // 4. Date range attendance (for trend chart + chronic absentees)
     const { data: rangeRecords } = await supabase
       .from('attendance')
       .select('student_id, date, status')
@@ -392,7 +386,6 @@ export default function PrincipalDashboard() {
       .gte('date', dateFrom)
       .lte('date', dateTo)
 
-    // Trend: group by date
     const dateMap: Record<string, { present: number; total: number }> = {}
     ;(rangeRecords || []).forEach(r => {
       if (!dateMap[r.date]) dateMap[r.date] = { present: 0, total: 0 }
@@ -408,7 +401,6 @@ export default function PrincipalDashboard() {
       .sort((a, b) => a.rawDate.localeCompare(b.rawDate))
     setTrendData(trend)
 
-    // Chronic absentees: per-student attendance % over range
     const studentMap: Record<string, { present: number; total: number }> = {}
     ;(rangeRecords || []).forEach(r => {
       if (!studentMap[r.student_id]) studentMap[r.student_id] = { present: 0, total: 0 }
@@ -439,660 +431,451 @@ export default function PrincipalDashboard() {
   const todayPct = todayStats.total ? Math.round((todayStats.present / todayStats.total) * 100) : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#07050F', fontFamily: 'sans-serif', color: '#fff' }}>
-      {/* Header */}
-      <div style={{ background: '#12102A', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 22 }}>🏫</span>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 900 }}>{branch?.name || 'Branch'}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Principal Dashboard · {branch?.code || ''}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer' }}>Sign Out</button>
+    <DashboardLayout
+      role="principal"
+      activePath={activeTab === 'overview' ? '/dashboard/principal' : `/dashboard/principal/${activeTab}`}
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🏫 {branch?.name || 'Branch'} Command</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Principal control panel · Branch Code: {branch?.code || '—'}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ background: '#12102A', padding: '0 24px', display: 'flex', gap: 4, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20, overflowX: 'auto', gap: 4 }}>
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '12px 18px',
-            background: activeTab === tab ? 'rgba(124,58,237,0.12)' : 'none',
-            border: 'none',
-            borderRadius: activeTab === tab ? '10px 10px 0 0' : 0,
-            color: activeTab === tab ? '#C4B5FD' : 'rgba(255,255,255,0.55)',
-            fontSize: 13,
-            fontWeight: activeTab === tab ? 700 : 500,
-            cursor: 'pointer',
-            position: 'relative',
-            textTransform: 'capitalize',
-            whiteSpace: 'nowrap',
-            transition: 'background 0.15s, color 0.15s',
-          }}>
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '12px 20px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: activeTab === tab ? 700 : 500, fontSize: 13,
+              color: activeTab === tab ? 'var(--accent-purple)' : 'var(--text-secondary)',
+              borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
+              transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
+            }}>
             {tab}
-            {activeTab === tab && (
-              <span style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, background: '#A78BFA', borderRadius: 2 }} />
-            )}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading branch details...</div>
       ) : (
-        <div style={{ padding: '20px 24px' }}>
+        <>
           {activeTab === 'overview' && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* KPI Cards */}
+              <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
                 {[
-                  { label: 'Teachers', value: stats.teachers, color: '#34D399', icon: Users },
-                  { label: 'Students', value: stats.students, color: '#FBBF24', icon: GraduationCap },
-                  { label: 'Classes', value: stats.classes, color: '#A78BFA', icon: BookOpen },
-                  { label: 'Attendance %', value: stats.attendance + '%', color: '#60A5FA', icon: ClipboardList },
-                ].map((k, i) => {
-                  const Icon = k.icon
+                  { label: 'Active Teachers', value: stats.teachers, color: 'var(--accent-purple)', icon: Users },
+                  { label: 'Enrolled Students', value: stats.students, color: 'var(--accent-emerald)', icon: GraduationCap },
+                  { label: 'Total Classrooms', value: stats.classes, color: 'var(--accent-cyan)', icon: BookOpen },
+                  { label: 'Daily Attendance', value: `${todayPct}%`, color: 'var(--accent-amber)', icon: ClipboardList },
+                ].map((s, i) => {
+                  const Icon = s.icon;
                   return (
-                    <div key={i} style={{ background: '#12102A', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.07)', borderTop: `3px solid ${k.color}`, boxShadow: `0 0 16px -4px ${k.color}66`, minHeight: 116, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 9, background: `${k.color}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={17} style={{ color: k.color }} />
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{s.label}</span>
+                        <Icon size={16} style={{ color: s.color }} />
                       </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>{k.label}</div>
-                        <div style={{ fontSize: 26, fontWeight: 700, color: k.color, letterSpacing: '-0.02em' }}>{k.value}</div>
-                      </div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{s.value}</div>
                     </div>
-                  )
+                  );
                 })}
               </div>
 
-              {/* Quick Actions */}
-              <div style={{ background: '#12102A', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.07)', marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>Quick Actions</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }} className="principal-quick-grid">
-                  <style>{`
-                    @media (max-width: 900px) {
-                      .principal-quick-grid { grid-template-columns: repeat(3, 1fr) !important; }
-                    }
-                    @media (max-width: 700px) {
-                      .principal-quick-grid { grid-template-columns: repeat(2, 1fr) !important; }
-                    }
-                    @media (max-width: 460px) {
-                      .principal-quick-grid { grid-template-columns: 1fr !important; }
-                    }
-                  `}</style>
-                  {[
-                    { label: 'Teachers', icon: Users, color: '#34D399', tab: 'teachers' },
-                    { label: 'Students', icon: GraduationCap, color: '#FBBF24', tab: 'students' },
-                    { label: 'Classes', icon: BookOpen, color: '#A78BFA', tab: 'classes' },
-                    { label: 'Attendance', icon: ClipboardList, color: '#60A5FA', tab: 'attendance' },
-                    { label: 'Reports', icon: BarChart3, color: '#F472B6', tab: 'reports' },
-                  ].map((action, i) => {
-                    const Icon = action.icon
+              {/* Branch overview */}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>🏫 Branch Information</h3>
+                {[
+                  { label: 'Branch Name', value: branch?.name },
+                  { label: 'Code', value: branch?.code },
+                  { label: 'Address', value: branch?.address },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < 2 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{item.value || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'teachers' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Faculty Directory ({filteredTeachers.length})</span>
+                <input
+                  type="text"
+                  placeholder="🔍 Search teachers..."
+                  value={teacherSearch}
+                  onChange={e => setTeacherSearch(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                />
+              </div>
+
+              {teachersLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+              ) : filteredTeachers.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No teachers found.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {filteredTeachers.map(t => {
+                    const isExpanded = expandedTeacher === t.id
+                    const assignments = teacherAssignments[t.id] || []
                     return (
-                      <button
-                        key={i}
-                        onClick={() => setActiveTab(action.tab)}
-                        style={{
-                          padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 12, color: '#fff', cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                          transition: 'transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.transform = 'translateY(-3px)'
-                          e.currentTarget.style.border = `1px solid ${action.color}99`
-                          e.currentTarget.style.boxShadow = `0 8px 20px -8px ${action.color}55`
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.transform = 'translateY(0)'
-                          e.currentTarget.style.border = '1px solid rgba(255,255,255,0.08)'
-                          e.currentTarget.style.boxShadow = 'none'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: 9, background: `${action.color}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon size={17} style={{ color: action.color }} />
+                      <div key={t.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div onClick={() => toggleTeacherDetail(t.id)} style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'var(--accent-purple)' }}>
+                              {(t.name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{t.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phone: {t.phone || '—'} · ID: {t.auto_id || '—'}</div>
+                            </div>
                           </div>
-                          <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)' }}>{isExpanded ? 'Collapse ▲' : 'Details ▼'}</span>
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{action.label}</div>
-                      </button>
-                    )
+
+                        {isExpanded && (
+                          <div style={{ background: 'var(--bg-elevated)', padding: 18, borderTop: '1px solid var(--border-subtle)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                              <div style={{ background: 'var(--bg-card)', padding: 10, borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Joining Date</div>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+                                  {t.joining_date ? new Date(t.joining_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                                </div>
+                              </div>
+                              <div style={{ background: 'var(--bg-card)', padding: 10, borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Employment Status</div>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: t.active ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: 2 }}>
+                                  {t.active ? 'Active' : 'Inactive'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Class & Subject Assignments</div>
+                            {loadingAssignments === t.id ? (
+                              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading assignments...</p>
+                            ) : assignments.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No active class assignments.</p>
+                            ) : (
+                              <div className="table-wrap">
+                                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                  <thead>
+                                    <tr>
+                                      <th>Grade</th>
+                                      <th>Section</th>
+                                      <th>Subject</th>
+                                      <th>Class Incharge</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {assignments.map((a, idx) => (
+                                      <tr key={idx}>
+                                        <td style={{ fontWeight: 700 }}>{a.grade}</td>
+                                        <td>{a.section}</td>
+                                        <td>{a.subject}</td>
+                                        <td>{a.is_incharge ? '✅ Yes' : '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'students' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Student Enrollment List ({filteredStudents.length})</span>
+                <input
+                  type="text"
+                  placeholder="🔍 Search students..."
+                  value={studentSearch}
+                  onChange={e => setStudentSearch(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                />
               </div>
 
-              {/* Branch Info */}
-              <div style={{ background: '#12102A', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800 }}>Branch Information</div>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 99,
-                    background: branch?.active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                    color: branch?.active ? '#34D399' : '#F87171',
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: branch?.active ? '#34D399' : '#F87171' }} />
-                    {branch?.active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
+              {studentsLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+              ) : gradeKeys.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No student records.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {gradeKeys.map(gradeKey => {
+                    const isGradeOpen = expandedGrade === gradeKey
+                    const sections = Object.keys(gradeTree[gradeKey]).sort()
+                    return (
+                      <div key={gradeKey} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div onClick={() => toggleGrade(gradeKey)} style={{ padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{gradeKey}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({totalInGrade(gradeKey)} students · {sections.length} sections)</span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)' }}>{isGradeOpen ? 'Collapse ▲' : 'Sections ▼'}</span>
+                        </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>Branch Name</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{branch?.name || '-'}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>Branch Code</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{branch?.code || '-'}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, padding: '12px 0' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>City</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{branch?.city || '-'}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>Address</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{branch?.address || '-'}</span>
-                    </div>
-                  </div>
+                        {isGradeOpen && (
+                          <div style={{ background: 'var(--bg-elevated)', padding: 10, display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border-subtle)' }}>
+                            {sections.map(section => {
+                              const sectionKey = `${gradeKey}-${section}`
+                              const isSectionOpen = expandedSection === sectionKey
+                              const sectionStudents = gradeTree[gradeKey][section]
+                              return (
+                                <div key={sectionKey} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden' }}>
+                                  <div onClick={() => toggleSection(sectionKey)} style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>Section {section}</span>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sectionStudents.length} students {isSectionOpen ? '▲' : '▼'}</span>
+                                  </div>
+
+                                  {isSectionOpen && (
+                                    <div style={{ padding: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)' }}>
+                                      {sectionStudents.map(s => (
+                                        <div key={s.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 10 }}>
+                                          <div style={{ fontSize: 13, fontWeight: 750, color: 'var(--text-primary)' }}>{s.name}</div>
+                                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>Roll: {s.roll_number || '—'} · ID: {s.auto_id}</div>
+                                          <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', borderTop: '1px solid var(--border-subtle)', marginTop: 6, paddingTop: 6 }}>
+                                            Guardian: {s.guardianName}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'classes' && (
+            <div>
+              {classesLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+              ) : classesList.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No classrooms created.</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                  {classesList.map((c, i) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 18 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Grade {c.grade} - {c.section}</div>
+                        <span className="status-badge active" style={{ fontSize: 11 }}>{c.studentCount} Students</span>
+                      </div>
+
+                      {c.incharge ? (
+                        <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12, border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Class Incharge</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{c.incharge.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Phone: {c.incharge.phone || '—'}</div>
+                        </div>
+                      ) : (
+                        <div style={{ background: 'rgba(244,63,94,0.06)', borderRadius: 10, padding: 12, fontSize: 12, color: 'var(--accent-rose)' }}>
+                          ⚠️ No Incharge assigned.
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === 'attendance' && (
-            <div className="bg-gray-50 text-gray-900 -m-6 min-h-[calc(100vh-113px)]">
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Attendance Summary</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 12 }} />
+                  <span style={{ color: 'var(--text-muted)' }}>to</span>
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 12 }} />
+                  <button onClick={applyDateFilter}
+                    style={{ padding: '6px 12px', border: 'none', borderRadius: 8, background: 'var(--accent-purple)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    Apply
+                  </button>
+                </div>
+              </div>
+
               {attLoading ? (
-                <div className="text-center py-16 text-gray-400">Loading attendance data...</div>
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
               ) : (
-                <>
-                  {/* Gradient header banner */}
-                  <div className="bg-gradient-to-r from-teal-700 to-cyan-800 px-6 pt-6 pb-8 mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">📋 Today's Attendance</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {[
-                        { label: 'Attendance %', value: todayPct + '%', icon: '📊' },
-                        { label: 'Present', value: todayStats.present, icon: '✅' },
-                        { label: 'Absent', value: todayStats.absent, icon: '❌' },
-                        { label: 'Late', value: todayStats.late, icon: '⏰' },
-                      ].map((k, i) => (
-                        <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                          <div className="text-xl mb-1">{k.icon}</div>
-                          <div className="text-2xl font-extrabold text-white">{k.value}</div>
-                          <div className="text-teal-100 text-xs mt-0.5">{k.label}</div>
-                        </div>
-                      ))}
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Today glance metrics */}
+                  <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                    {[
+                      { label: "Today's Ratio", value: `${todayPct}%`, color: 'var(--accent-purple)' },
+                      { label: "Present count", value: todayStats.present, color: 'var(--accent-emerald)' },
+                      { label: "Absent count", value: todayStats.absent, color: 'var(--accent-rose)' },
+                      { label: "Late count", value: todayStats.late, color: 'var(--accent-amber)' },
+                    ].map((k, idx) => (
+                      <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '16px 20px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: k.color }}>{k.value}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{k.label}</div>
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="px-6 pb-6">
-
-                  {/* Class-wise breakdown */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-                    <div className="px-5 py-3.5 border-b border-gray-100">
-                      <span className="text-sm font-extrabold text-gray-800">Class-wise Breakdown (Today)</span>
-                    </div>
-                    {classBreakdown.length === 0 ? (
-                      <div className="p-8 text-center text-gray-400 text-sm">
-                        Aaj ka attendance abhi mark nahi hua kisi class mein.
-                      </div>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            {['Grade', 'Section', 'Present', 'Absent', 'Late', '%'].map(h => (
-                              <th key={h} className="px-5 py-2 text-left text-xs text-gray-500 uppercase">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {classBreakdown.map((c, i) => {
-                            const pct = c.total ? Math.round((c.present / c.total) * 100) : 0
-                            return (
-                              <tr key={i}>
-                                <td className="px-5 py-2.5 font-bold text-gray-900">{c.grade}</td>
-                                <td className="px-5 py-2.5 text-gray-700">{c.section}</td>
-                                <td className="px-5 py-2.5 text-green-600">{c.present}</td>
-                                <td className="px-5 py-2.5 text-red-600">{c.absent}</td>
-                                <td className="px-5 py-2.5 text-yellow-600">{c.late}</td>
-                                <td className={`px-5 py-2.5 font-bold ${pct >= 75 ? 'text-green-600' : 'text-red-600'}`}>{pct}%</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-
-                  {/* Date range filter + trend chart */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-                    <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
-                      <span className="text-sm font-extrabold text-gray-800">Attendance Trend</span>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500" />
-                        <span className="text-gray-400 text-xs">to</span>
-                        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500" />
-                        <button onClick={applyDateFilter} className="bg-teal-700 text-white rounded-lg px-3.5 py-1.5 text-xs font-semibold hover:bg-teal-800 transition-colors">
-                          Apply
-                        </button>
-                      </div>
-                    </div>
-
+                  {/* Trend chart */}
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: 'var(--text-primary)' }}>Attendance Trend Logs</div>
                     {trendData.length === 0 ? (
-                      <div className="p-10 text-center text-gray-400 text-sm">
-                        Is date range mein koi attendance record nahi mila.
-                      </div>
+                      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No records inside selected range.</div>
                     ) : (
-                      <div className="w-full h-60">
+                      <div style={{ width: '100%', height: 240 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} />
-                            <YAxis stroke="#9ca3af" fontSize={11} domain={[0, 100]} unit="%" />
-                            <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }} />
-                            <Line type="monotone" dataKey="pct" name="Attendance %" stroke="#0f766e" strokeWidth={2} dot={{ r: 3 }} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                            <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} />
+                            <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 100]} unit="%" />
+                            <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 12, color: 'var(--text-primary)' }} />
+                            <Line type="monotone" dataKey="pct" name="Attendance Ratio %" stroke="var(--accent-purple)" strokeWidth={2} dot={{ r: 3 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     )}
                   </div>
 
-                  {/* Chronic absentees */}
-                  <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
-                    <div className="px-5 py-3.5 border-b border-red-100 bg-red-50">
-                      <span className="text-sm font-extrabold text-red-600">
-                        ⚠️ Chronic Absentees ({'<'}{CHRONIC_THRESHOLD}% in selected range) — {chronicList.length}
-                      </span>
+                  {/* Class-wise logs */}
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Class-wise Attendance Ratio (Today)</span>
                     </div>
-                    {chronicList.length === 0 ? (
-                      <div className="p-8 text-center text-gray-400 text-sm">
-                        Koi student {CHRONIC_THRESHOLD}% se neeche nahi hai is range mein. 🎉
-                      </div>
+                    {classBreakdown.length === 0 ? (
+                      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No daily records logged today.</div>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            {['Student', 'Grade', 'Roll #', 'Present/Total', '%'].map(h => (
-                              <th key={h} className="px-5 py-2 text-left text-xs text-gray-500 uppercase">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {chronicList.map((s, i) => (
-                            <tr key={i}>
-                              <td className="px-5 py-2.5 font-semibold text-gray-900">{s.name}</td>
-                              <td className="px-5 py-2.5 text-gray-700">{s.grade}-{s.section}</td>
-                              <td className="px-5 py-2.5 text-gray-500">{s.roll_number}</td>
-                              <td className="px-5 py-2.5 text-gray-500">{s.present}/{s.total}</td>
-                              <td className="px-5 py-2.5 font-bold text-red-600">{s.pct}%</td>
+                      <div className="table-wrap">
+                        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th>Grade</th>
+                              <th>Section</th>
+                              <th>Present</th>
+                              <th>Absent</th>
+                              <th>Late</th>
+                              <th>Ratio %</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {classBreakdown.map((c, i) => {
+                              const pct = c.total ? Math.round((c.present / c.total) * 100) : 0
+                              return (
+                                <tr key={i}>
+                                  <td style={{ fontWeight: 700 }}>Grade {c.grade}</td>
+                                  <td>Section {c.section}</td>
+                                  <td style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>{c.present}</td>
+                                  <td style={{ color: 'var(--accent-rose)', fontWeight: 700 }}>{c.absent}</td>
+                                  <td style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>{c.late}</td>
+                                  <td>
+                                    <span className={`status-badge ${pct >= 75 ? 'active' : 'inactive'}`}>{pct}%</span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
 
-          {activeTab === 'teachers' && (
-            <div className="bg-gray-50 text-gray-900 -m-6 min-h-[calc(100vh-113px)]">
-              {teachersLoading ? (
-                <div className="text-center py-16 text-gray-400">Loading...</div>
-              ) : (
-                <>
-                  {/* Gradient header banner */}
-                  <div className="bg-gradient-to-r from-slate-700 to-blue-800 px-6 pt-6 pb-8 mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">👨‍🏫 Teachers</h2>
-                    <div className="grid grid-cols-2 gap-3 max-w-md">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">👥</div>
-                        <div className="text-2xl font-extrabold text-white">{teachersList.length}</div>
-                        <div className="text-blue-200 text-xs mt-0.5">Total Teachers</div>
+                  {/* Chronic absentees */}
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', background: 'rgba(244,63,94,0.06)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--accent-rose)' }}>⚠️ Chronic Absentees (&lt;{CHRONIC_THRESHOLD}% attendance)</span>
+                    </div>
+                    {chronicList.length === 0 ? (
+                      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students falling under threshold.</div>
+                    ) : (
+                      <div className="table-wrap">
+                        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th>Student</th>
+                              <th>Grade / Section</th>
+                              <th>Roll Number</th>
+                              <th>Ratio present/total</th>
+                              <th>Ratio %</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {chronicList.map((s, idx) => (
+                              <tr key={idx}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                                <td>Grade {s.grade}-{s.section}</td>
+                                <td style={{ color: 'var(--accent-purple)', fontFamily: 'monospace' }}>{s.roll_number}</td>
+                                <td>{s.present} / {s.total} logs</td>
+                                <td style={{ color: 'var(--accent-rose)', fontWeight: 800 }}>{s.pct}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">🔍</div>
-                        <div className="text-2xl font-extrabold text-white">{filteredTeachers.length}</div>
-                        <div className="text-blue-200 text-xs mt-0.5">Showing</div>
-                      </div>
-                    </div>
+                    )}
                   </div>
-
-                  <div className="px-6 pb-6">
-                  <div className="flex justify-end mb-4">
-                    <input
-                      type="text"
-                      placeholder="🔍 Search by name or ID..."
-                      value={teacherSearch}
-                      onChange={e => setTeacherSearch(e.target.value)}
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[220px] bg-white shadow-sm"
-                    />
-                  </div>
-
-                  {filteredTeachers.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
-                      <div className="text-5xl mb-4">👨‍🏫</div>
-                      <div className="text-gray-400 text-sm">Koi teacher nahi mila.</div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {filteredTeachers.map(t => {
-                        const isExpanded = expandedTeacher === t.id
-                        const assignments = teacherAssignments[t.id] || []
-                        return (
-                          <div key={t.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div
-                              onClick={() => toggleTeacherDetail(t.id)}
-                              className="px-5 py-4 flex justify-between items-center cursor-pointer flex-wrap gap-2.5"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-base font-bold text-blue-700">
-                                  {(t.name || '?').charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                  <div className="text-sm font-bold text-gray-900">{t.name}</div>
-                                  <div className="text-xs text-gray-400">{t.phone || 'No phone'} {t.auto_id ? `· ${t.auto_id}` : ''}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2.5">
-                                {!t.active && (
-                                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-600">Inactive</span>
-                                )}
-                                <span className="text-xs text-blue-600">{isExpanded ? '▲' : '▼'}</span>
-                              </div>
-                            </div>
-
-                            {isExpanded && (
-                              <div className="border-t border-gray-100 bg-gray-50 p-5">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                                  {[
-                                    { label: 'Full Name', value: t.name },
-                                    { label: 'Phone', value: t.phone },
-                                    { label: 'Joining Date', value: t.joining_date ? new Date(t.joining_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' }) : null },
-                                    { label: 'Status', value: t.active ? '● Active' : '● Inactive' },
-                                  ].filter(f => f.value).map((f, i) => (
-                                    <div key={i} className="bg-white rounded-lg border border-gray-100 p-3">
-                                      <div className="text-xs text-gray-400 mb-1">{f.label}</div>
-                                      <div className="text-sm font-semibold text-gray-900">{f.value}</div>
-                                    </div>
-                                  ))}
-                                </div>
-
-                                <div className="text-xs font-bold text-gray-600 mb-2">
-                                  Assigned Classes & Subjects
-                                </div>
-
-                                {loadingAssignments === t.id ? (
-                                  <div className="text-xs text-gray-400 p-3">Loading...</div>
-                                ) : assignments.length === 0 ? (
-                                  <div className="text-xs text-gray-400 p-3">Koi class assign nahi hai abhi.</div>
-                                ) : (
-                                  <div className="rounded-lg overflow-hidden border border-gray-100 bg-white">
-                                    <table className="w-full text-xs">
-                                      <thead>
-                                        <tr className="bg-gray-50">
-                                          {['Grade', 'Section', 'Subject', 'Incharge'].map(h => (
-                                            <th key={h} className="px-3.5 py-2 text-left text-gray-400 uppercase text-[10px]">{h}</th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-gray-50">
-                                        {assignments.map((a, i) => (
-                                          <tr key={i}>
-                                            <td className="px-3.5 py-2 font-bold text-gray-900">{a.grade}</td>
-                                            <td className="px-3.5 py-2 text-gray-700">{a.section}</td>
-                                            <td className="px-3.5 py-2 text-gray-700">{a.subject}</td>
-                                            <td className="px-3.5 py-2">
-                                              {a.is_incharge ? <span className="text-green-600">✓ Yes</span> : <span className="text-gray-300">—</span>}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'students' && (
-            <div className="bg-gray-50 text-gray-900 -m-6 min-h-[calc(100vh-113px)]">
-              {studentsLoading ? (
-                <div className="text-center py-16 text-gray-400">Loading...</div>
-              ) : (
-                <>
-                  {/* Gradient header banner */}
-                  <div className="bg-gradient-to-r from-orange-800 to-amber-800 px-6 pt-6 pb-8 mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">🎓 Students</h2>
-                    <div className="grid grid-cols-2 gap-3 max-w-md">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">👥</div>
-                        <div className="text-2xl font-extrabold text-white">{studentsList.length}</div>
-                        <div className="text-orange-200 text-xs mt-0.5">Total Students</div>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">🔍</div>
-                        <div className="text-2xl font-extrabold text-white">{filteredStudents.length}</div>
-                        <div className="text-orange-200 text-xs mt-0.5">Showing</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-6 pb-6">
-                  <div className="flex justify-end mb-5">
-                    <input
-                      type="text"
-                      placeholder="🔍 Search by name or ID..."
-                      value={studentSearch}
-                      onChange={e => setStudentSearch(e.target.value)}
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 min-w-[220px] bg-white shadow-sm"
-                    />
-                  </div>
-
-                  {gradeKeys.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
-                      <div className="text-5xl mb-4">🎓</div>
-                      <div className="text-gray-400 text-sm">Koi student nahi mila.</div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {gradeKeys.map(gradeKey => {
-                        const isGradeOpen = expandedGrade === gradeKey
-                        const sections = Object.keys(gradeTree[gradeKey]).sort()
-                        return (
-                          <div key={gradeKey} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div
-                              onClick={() => toggleGrade(gradeKey)}
-                              className="px-5 py-3.5 flex justify-between items-center cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-base">📘</span>
-                                <span className="text-sm font-extrabold text-gray-800">{gradeKey}</span>
-                                <span className="text-xs text-gray-400">({totalInGrade(gradeKey)} students · {sections.length} sections)</span>
-                              </div>
-                              <span className="text-xs text-orange-600">{isGradeOpen ? '▲' : '▼'}</span>
-                            </div>
-
-                            {isGradeOpen && (
-                              <div className="border-t border-gray-100 p-2.5 flex flex-col gap-2">
-                                {sections.map(section => {
-                                  const sectionKey = `${gradeKey}-${section}`
-                                  const isSectionOpen = expandedSection === sectionKey
-                                  const sectionStudents = gradeTree[gradeKey][section]
-                                  return (
-                                    <div key={sectionKey} className="bg-gray-50 rounded-lg border border-gray-100 overflow-hidden">
-                                      <div
-                                        onClick={() => toggleSection(sectionKey)}
-                                        className="px-4 py-2.5 flex justify-between items-center cursor-pointer"
-                                      >
-                                        <span className="text-sm font-bold text-orange-700">Section {section}</span>
-                                        <div className="flex items-center gap-2.5">
-                                          <span className="text-xs text-gray-400">{sectionStudents.length} students</span>
-                                          <span className="text-xs text-orange-600">{isSectionOpen ? '▲' : '▼'}</span>
-                                        </div>
-                                      </div>
-
-                                      {isSectionOpen && (
-                                        <div className="border-t border-gray-100 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                          {sectionStudents.map(s => (
-                                            <div key={s.id} className="bg-white rounded-lg border border-gray-100 p-3">
-                                              <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="w-6.5 h-6.5 rounded-full bg-orange-100 flex items-center justify-center text-xs">
-                                                  🎓
-                                                </div>
-                                                <div className="text-xs font-bold text-gray-900">{s.name}</div>
-                                              </div>
-                                              <div className="text-[10px] text-gray-400 flex justify-between">
-                                                <span>Roll #{s.roll_number || '-'}</span>
-                                                <span>{s.auto_id}</span>
-                                              </div>
-                                              <div className="text-[10px] text-gray-500 mt-1 pt-1 border-t border-gray-50">
-                                                👤 {s.guardianName}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'classes' && (
-            <div className="bg-gray-50 text-gray-900 -m-6 min-h-[calc(100vh-113px)]">
-              {classesLoading ? (
-                <div className="text-center py-16 text-gray-400">Loading...</div>
-              ) : (
-                <>
-                  {/* Gradient header banner */}
-                  <div className="bg-gradient-to-r from-purple-800 to-violet-900 px-6 pt-6 pb-8 mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">📚 Classes</h2>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 max-w-[180px]">
-                      <div className="text-xl mb-1">📘</div>
-                      <div className="text-2xl font-extrabold text-white">{classesList.length}</div>
-                      <div className="text-purple-200 text-xs mt-0.5">Total Classes</div>
-                    </div>
-                  </div>
-
-                  <div className="px-6 pb-6">
-
-                  {classesList.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-14 text-center">
-                      <div className="text-5xl mb-4">📚</div>
-                      <div className="text-gray-400 text-sm">Koi class nahi mili.</div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {classesList.map((c, i) => (
-                        <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4.5">
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="text-base font-extrabold text-gray-800">📘 Grade {c.grade} - {c.section}</div>
-                            <div className="text-xs font-bold text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full">
-                              {c.studentCount} students
-                            </div>
-                          </div>
-
-                          {c.incharge ? (
-                            <div className="bg-gray-50 rounded-lg p-3">
-                              <div className="text-xs text-gray-400 mb-1">Class Incharge</div>
-                              <div className="text-sm font-bold text-gray-900">👨‍🏫 {c.incharge.name}</div>
-                              <div className="text-xs text-gray-500 mt-0.5">📞 {c.incharge.phone || 'No phone'}</div>
-                            </div>
-                          ) : (
-                            <div className="bg-red-50 rounded-lg p-3 text-xs text-red-600">
-                              ⚠️ Koi class incharge assign nahi hai
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  </div>
-                </>
+                </div>
               )}
             </div>
           )}
 
           {activeTab === 'reports' && (
-            <div className="bg-gray-50 text-gray-900 -m-6 min-h-[calc(100vh-113px)]">
+            <div>
               {reportsLoading ? (
-                <div className="text-center py-16 text-gray-400">Loading...</div>
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
               ) : (
-                <>
-                  {/* Gradient header banner */}
-                  <div className="bg-gradient-to-r from-indigo-800 to-blue-900 px-6 pt-6 pb-8 mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">📊 School Performance Overview</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">📋</div>
-                        <div className="text-2xl font-extrabold text-white">{reportAttendancePct}%</div>
-                        <div className="text-indigo-200 text-xs mt-0.5">Attendance (30 days)</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Summary row */}
+                  <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 16 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-purple)' }}>{reportAttendancePct}%</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Attendance Ratio (30 Days)</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 16 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-cyan)' }}>{reportMarksAvg}%</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Average Marks (Yearly)</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 16 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                        {reportFees.totalNet ? Math.round((reportFees.collected / reportFees.totalNet) * 100) : 0}%
                       </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">📊</div>
-                        <div className="text-2xl font-extrabold text-white">{reportMarksAvg}%</div>
-                        <div className="text-indigo-200 text-xs mt-0.5">Avg Marks (this year)</div>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                        <div className="text-xl mb-1">💰</div>
-                        <div className="text-2xl font-extrabold text-white">
-                          {reportFees.totalNet ? Math.round((reportFees.collected / reportFees.totalNet) * 100) : 0}%
-                        </div>
-                        <div className="text-indigo-200 text-xs mt-0.5">Fee Collected (this month)</div>
-                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Fees Collection Ratio</div>
                     </div>
                   </div>
 
-                  <div className="px-6 pb-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Subject-wise marks */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-gray-100">
-                        <span className="text-sm font-extrabold text-gray-800">Subject-wise Average</span>
-                      </div>
+                  {/* Breakdown tables */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                      <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>Subject-wise average</h3>
                       {reportSubjectAvg.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-sm">
-                          Abhi koi result published nahi hua is saal.
-                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No published report cards.</p>
                       ) : (
-                        <div className="px-5 py-4 flex flex-col gap-2.5">
-                          {reportSubjectAvg.map((s, i) => (
-                            <div key={i}>
-                              <div className="flex justify-between text-xs mb-1">
-                                <span className="text-gray-600">{s.subject}</span>
-                                <span className={`font-bold ${s.avg >= 60 ? 'text-green-600' : 'text-red-600'}`}>{s.avg}%</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {reportSubjectAvg.map((s, idx) => (
+                            <div key={idx}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>{s.subject}</span>
+                                <span style={{ fontWeight: 700, color: s.avg >= 60 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{s.avg}%</span>
                               </div>
-                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${s.avg >= 60 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${s.avg}%` }} />
+                              <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, height: 6, overflow: 'hidden' }}>
+                                <div style={{ width: `${s.avg}%`, height: '100%', background: s.avg >= 60 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }} />
                               </div>
                             </div>
                           ))}
@@ -1100,50 +883,36 @@ export default function PrincipalDashboard() {
                       )}
                     </div>
 
-                    {/* Fee breakdown */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-gray-100">
-                        <span className="text-sm font-extrabold text-gray-800">Fee Collection (this month)</span>
-                      </div>
-                      <div className="p-5 flex flex-col gap-3.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">✅ Collected</span>
-                          <span className="text-base font-extrabold text-green-600">Rs. {reportFees.collected.toLocaleString()}</span>
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                      <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>Fee Collections (Monthly)</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>✅ Collected</span>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-emerald)' }}>Rs. {reportFees.collected.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">⏳ Pending</span>
-                          <span className="text-base font-extrabold text-red-600">Rs. {reportFees.pending.toLocaleString()}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>⏳ Pending</span>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-rose)' }}>Rs. {reportFees.pending.toLocaleString()}</span>
                         </div>
-                        <div className="h-px bg-gray-100" />
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-gray-600">Total Expected</span>
-                          <span className="text-base font-extrabold text-gray-900">Rs. {reportFees.totalNet.toLocaleString()}</span>
+                        <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Total Expected</span>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Rs. {reportFees.totalNet.toLocaleString()}</span>
                         </div>
                         {reportFees.totalNet === 0 && (
-                          <div className="text-xs text-gray-400 text-center pt-2">
-                            Is mahine ka koi fee record nahi mila.
+                          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5, marginTop: 10 }}>
+                            No billing records logged for this month.
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
-                  </div>
-                </>
+                </div>
               )}
             </div>
           )}
-
-          {activeTab !== 'overview' && activeTab !== 'attendance' && activeTab !== 'teachers' && activeTab !== 'students' && activeTab !== 'classes' && activeTab !== 'reports' && (
-            <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>
-                {('' as any)[activeTab]}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize' }}>{activeTab}</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Coming soon — agle update mein!</div>
-            </div>
-          )}
-        </div>
+        </>
       )}
-    </div>
+    </DashboardLayout>
   )
 }

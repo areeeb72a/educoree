@@ -15,6 +15,32 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showForgotMsg, setShowForgotMsg] = useState(false)
 
+  // Forgot password recovery states
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [sendingResetLink, setSendingResetLink] = useState(false)
+  const [resetLinkSent, setResetLinkSent] = useState(false)
+  const [forgotError, setForgotError] = useState('')
+
+  async function handleSendResetLink() {
+    setForgotError('')
+    setResetLinkSent(false)
+    if (!forgotEmail.trim()) {
+      setForgotError('Email address enter karen')
+      return
+    }
+    setSendingResetLink(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: `${window.location.origin}/change-password`
+      })
+      if (error) throw error
+      setResetLinkSent(true)
+    } catch (err: any) {
+      setForgotError(err.message || 'Link send karne mein masla ho gaya')
+    }
+    setSendingResetLink(false)
+  }
+
   async function handleLogin() {
     setLoading(true)
     setError('')
@@ -226,7 +252,7 @@ export default function LoginPage() {
 
       {showForgotMsg && (
         <div
-          onClick={() => setShowForgotMsg(false)}
+          onClick={() => { setShowForgotMsg(false); setResetLinkSent(false); setForgotEmail(''); setForgotError('') }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}
         >
           <div
@@ -234,16 +260,55 @@ export default function LoginPage() {
             style={{ background: '#12102A', borderRadius: 20, padding: 28, width: '100%', maxWidth: 360, border: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}
           >
             <div style={{ fontSize: 36, marginBottom: 12 }}>🔑</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Password Bhool Gaye?</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20, lineHeight: 1.5 }}>
-              Apne school ke Admin ya HR se contact karen, wo aapka password reset kar denge.
-            </div>
-            <button
-              onClick={() => setShowForgotMsg(false)}
-              style={{ width: '100%', padding: 12, background: '#4361EE', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-            >
-              Theek Hai
-            </button>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Password Recovery</div>
+            
+            {resetLinkSent ? (
+              <div>
+                <div style={{ fontSize: 13, color: '#34D399', marginBottom: 20, lineHeight: 1.5 }}>
+                  📬 Password reset link aapke email address par send kar di gayi hai! Apne inbox (ya spam folder) ko check karen.
+                </div>
+                <button
+                  onClick={() => { setShowForgotMsg(false); setResetLinkSent(false); setForgotEmail(''); setForgotError('') }}
+                  style={{ width: '100%', padding: 12, background: '#4361EE', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 1.5 }}>
+                  Apna registered email enter karen, hum aapko password reset karne ka secure link send karenge.
+                </div>
+                
+                <input
+                  type="email"
+                  placeholder="name@email.com"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
+                />
+
+                {forgotError && (
+                  <div style={{ fontSize: 12, color: '#FCA5A5', marginBottom: 14, textAlign: 'left' }}>{forgotError}</div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => { setShowForgotMsg(false); setResetLinkSent(false); setForgotEmail(''); setForgotError('') }}
+                    style={{ flex: 1, padding: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendResetLink}
+                    disabled={sendingResetLink}
+                    style={{ flex: 2, padding: 12, background: '#4361EE', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: sendingResetLink ? 0.6 : 1 }}
+                  >
+                    {sendingResetLink ? 'Sending...' : 'Send Link'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

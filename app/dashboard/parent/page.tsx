@@ -1,7 +1,9 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { ClipboardList, BarChart3, Wallet, MessageCircle, ChevronRight } from 'lucide-react'
+import { ClipboardList, BarChart3, Wallet, MessageCircle, ChevronRight, Calendar, Award } from 'lucide-react'
+import DashboardLayout from '../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
@@ -9,10 +11,30 @@ const supabase = createClient(
 )
 
 const gradeColor: Record<string, string> = {
-  "A+": "#059669", "A": "#059669",
-  "B+": "#2563EB", "B": "#2563EB",
-  "C": "#D97706", "D": "#EA580C",
-  "F": "#DC2626",
+  "A+": "text-green-400 bg-green-500/10", "A": "text-green-400 bg-green-500/10",
+  "B+": "text-blue-400 bg-blue-500/10", "B": "text-blue-400 bg-blue-500/10",
+  "C": "text-yellow-400 bg-yellow-500/10", "D": "text-orange-400 bg-orange-500/10",
+  "F": "text-red-400 bg-red-500/10",
+}
+
+const ttSubjectColor: Record<string, string> = {
+  Mathematics: "rgba(59,130,246,0.1) rgba(59,130,246,0.3) #3b82f6",
+  Science: "rgba(16,185,129,0.1) rgba(16,185,129,0.3) #10b981",
+  English: "rgba(139,92,246,0.1) rgba(139,92,246,0.3) #8b5cf6",
+  Urdu: "rgba(245,158,11,0.1) rgba(245,158,11,0.3) #f59e0b",
+  Islamiat: "rgba(6,182,212,0.1) rgba(6,182,212,0.3) #06b6d4",
+  "Social Studies": "rgba(236,72,153,0.1) rgba(236,72,153,0.3) #ec4899",
+  Arts: "rgba(224,242,254,0.1) rgba(14,165,233,0.3) #0ea5e9",
+  Computer: "rgba(99,102,241,0.1) rgba(99,102,241,0.3) #6366f1",
+};
+
+function fmtTime(t: string) {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  const hour = parseInt(h);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
 }
 
 export default function ParentDashboard() {
@@ -42,12 +64,12 @@ export default function ParentDashboard() {
   const [overviewMarksPct, setOverviewMarksPct] = useState<number | null>(null)
 
   useEffect(() => { fetchData() }, [])
-  useEffect(() => { if ((activeTab === 'overview' || activeTab === 'marks' || activeTab === 'fees' || activeTab === 'timetable' || activeTab === 'attendance') && !marksLoaded) fetchGuardianAndChildren() }, [activeTab])
-  useEffect(() => { if (selectedChild && activeTab === 'marks') fetchResults() }, [selectedChild, activeTab])
-  useEffect(() => { if (selectedChild && activeTab === 'fees') fetchFees() }, [selectedChild, activeTab])
-  useEffect(() => { if (selectedChild && activeTab === 'timetable') fetchTimetable() }, [selectedChild, activeTab])
-  useEffect(() => { if (selectedChild && activeTab === 'attendance') fetchAttendance() }, [selectedChild, activeTab, attMonth])
-  useEffect(() => { if (selectedChild && activeTab === 'overview') fetchOverviewSummary() }, [selectedChild, activeTab])
+  useEffect(() => { if (!marksLoaded) fetchGuardianAndChildren() }, [])
+  useEffect(() => { if (selectedChild) fetchResults() }, [selectedChild])
+  useEffect(() => { if (selectedChild) fetchFees() }, [selectedChild])
+  useEffect(() => { if (selectedChild) fetchTimetable() }, [selectedChild])
+  useEffect(() => { if (selectedChild) fetchAttendance() }, [selectedChild, attMonth])
+  useEffect(() => { if (selectedChild) fetchOverviewSummary() }, [selectedChild])
 
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -63,7 +85,7 @@ export default function ParentDashboard() {
     const { data: guardianData } = await supabase.from('guardians').select('*').eq('user_id', user.id).single()
     setGuardian(guardianData)
     if (guardianData) {
-      const { data: kids } = await supabase.from('students').select('id, name, grade, section').eq('guardian_id', guardianData.id).order('name')
+      const { data: kids } = await supabase.from('students').select('id, name, grade, section, school_id, branch_id').eq('guardian_id', guardianData.id).order('name')
       setChildren(kids || [])
       if (kids && kids.length > 0) setSelectedChild(kids[0].id)
     }
@@ -97,6 +119,7 @@ export default function ParentDashboard() {
       .select('*')
       .eq('grade', child.grade)
       .eq('section', child.section)
+      .eq('branch_id', child.branch_id)
       .order('period_no')
     setTimetableEntries(data || [])
   }
@@ -118,7 +141,6 @@ export default function ParentDashboard() {
   }
 
   async function fetchOverviewSummary() {
-    // Last 30 days attendance %
     const since = new Date()
     since.setDate(since.getDate() - 29)
     const sinceStr = since.toISOString().split('T')[0]
@@ -133,7 +155,6 @@ export default function ParentDashboard() {
     const present = (attData || []).filter(r => r.status === 'present').length
     setOverviewAttPct(total ? Math.round((present / total) * 100) : null)
 
-    // Average marks (published)
     const { data: resultsData } = await supabase
       .from('results')
       .select('marks, total_marks')
@@ -148,7 +169,13 @@ export default function ParentDashboard() {
     }
   }
 
-  const tabs = ['overview', 'attendance', 'marks', 'fees', 'timetable', 'communication', 'messages']
+  function termAverage(records: any[]) {
+    if (!records || records.length === 0) return 0
+    const sum = records.reduce((acc, r) => acc + (r.marks / r.total_marks) * 100, 0)
+    return Math.round(sum / records.length)
+  }
+
+  const tabs = ['overview', 'attendance', 'marks', 'fees', 'timetable', 'diary', 'messages']
   const currentChild = children.find(c => c.id === selectedChild)
   const termOrder = ['Term 1', 'Term 2', 'Term 3', 'Final']
   const byTerm: Record<string, any[]> = {}
@@ -160,493 +187,380 @@ export default function ParentDashboard() {
   const totalPaid = paidFees.reduce((sum, r) => sum + (r.net_amount || r.amount || 0), 0)
 
   const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI']
-  const DAY_LABELS: Record<string, string> = { MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri' }
+  const DAY_LABELS: Record<string, string> = { MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday' }
   const ttPeriods = Array.from(new Set(timetableEntries.map(e => e.period_no))).sort((a, b) => a - b)
   const ttGrid: Record<number, Record<string, any>> = {}
   timetableEntries.forEach(e => { if (!ttGrid[e.period_no]) ttGrid[e.period_no] = {}; ttGrid[e.period_no][e.day_of_week] = e })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#07050F', fontFamily: 'sans-serif', color: '#fff' }}>
-      <div style={{ background: '#12102A', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 22 }}>👨‍👩‍👧</span>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 900 }}>{profile?.name || 'Parent'}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Parent Portal · {profile?.schools?.name || ''}</div>
-          </div>
+    <DashboardLayout
+      role="parent"
+      activePath={activeTab === 'overview' ? '/dashboard/parent' : `/dashboard/parent/${activeTab}`}
+      onRefresh={fetchOverviewSummary}
+    >
+      {/* Top Selector bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>👨‍👩‍👧 Parent Control Panel</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : 'Loading...'}
+          </p>
         </div>
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer' }}>Sign Out</button>
+        {children.length > 1 && (
+          <select
+            value={selectedChild}
+            onChange={(e) => setSelectedChild(e.target.value)}
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
+          >
+            {children.map((c) => (
+              <option key={c.id} value={c.id} style={{ color: 'var(--text-primary)' }}>{c.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <div style={{ background: '#12102A', padding: '0 24px', display: 'flex', gap: 4, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20, overflowX: 'auto', gap: 4 }}>
         {tabs.map(tab => (
-          <button key={tab} onClick={() => tab === 'communication' ? (window.location.href = '/dashboard/parent/diary') : tab === 'messages' ? (window.location.href = '/dashboard/parent/messages') : setActiveTab(tab)} style={{
-            padding: '12px 18px',
-            background: activeTab === tab ? 'rgba(124,58,237,0.12)' : 'none',
-            border: 'none',
-            borderRadius: activeTab === tab ? '10px 10px 0 0' : 0,
-            color: activeTab === tab ? '#C4B5FD' : 'rgba(255,255,255,0.55)',
-            fontSize: 13,
-            fontWeight: activeTab === tab ? 700 : 500,
-            cursor: 'pointer',
-            position: 'relative',
-            textTransform: 'capitalize',
-            whiteSpace: 'nowrap',
-            transition: 'background 0.15s, color 0.15s',
-          }}>
-            {tab === 'communication' ? 'Diary' : tab}
-            {activeTab === tab && (
-              <span style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, background: '#A78BFA', borderRadius: 2 }} />
-            )}
+          <button key={tab}
+            onClick={() => tab === 'diary' ? (window.location.href = '/dashboard/parent/diary') : tab === 'messages' ? (window.location.href = '/dashboard/parent/messages') : setActiveTab(tab)}
+            style={{
+              padding: '12px 20px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: activeTab === tab ? 700 : 500, fontSize: 13,
+              color: activeTab === tab ? 'var(--accent-purple)' : 'var(--text-secondary)',
+              borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
+              transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
+            }}>
+            {tab}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading child metrics...</p>
       ) : (
-        <div style={{ padding: '20px 24px' }}>
+        <>
           {activeTab === 'overview' && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* KPI metrics */}
+              <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
                 {[
-                  {
-                    label: "Child's Attendance", icon: ClipboardList, color: '#34D399',
-                    value: overviewAttPct !== null ? `${overviewAttPct}%` : '-',
-                  },
-                  {
-                    label: 'Average Marks', icon: BarChart3, color: '#A78BFA',
-                    value: overviewMarksPct !== null ? `${overviewMarksPct}%` : '-',
-                  },
-                  {
-                    label: 'Fee Status', icon: Wallet, color: marksLoaded && totalDue > 0 ? '#FBBF24' : '#4ADE80',
-                    value: marksLoaded ? (totalDue > 0 ? 'Pending' : 'No Dues') : '-',
-                  },
-                  { label: 'New Messages', icon: MessageCircle, color: '#60A5FA', value: 0 },
-                ].map((k, i) => {
-                  const Icon = k.icon
-                  return (
-                    <div key={i} style={{ background: '#12102A', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.07)', borderTop: `3px solid ${k.color}`, boxShadow: `0 0 16px -4px ${k.color}66`, minHeight: 116, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 9, background: `${k.color}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={17} style={{ color: k.color }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>{k.label}</div>
-                        <div style={{ fontSize: 24, fontWeight: 700, color: k.color, letterSpacing: '-0.02em' }}>{k.value}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+                  { label: "Child's Attendance", value: overviewAttPct !== null ? `${overviewAttPct}%` : '-', color: 'var(--accent-emerald)' },
+                  { label: 'Average Marks', value: overviewMarksPct !== null ? `${overviewMarksPct}%` : '-', color: 'var(--accent-purple)' },
+                  { label: 'Fee Status', value: marksLoaded ? (totalDue > 0 ? 'Pending' : 'Fully Paid') : '-', color: totalDue > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' },
+                  { label: 'Unread Messages', value: '0', color: 'var(--accent-cyan)' },
+                ].map((k, i) => (
+                  <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: '16px 20px' }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: k.color }}>{k.value}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{k.label}</div>
+                  </div>
+                ))}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>My Profile</div>
+              {/* Profiles grid info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                  <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>My Parent Account Info</h3>
                   {[
                     { label: 'Name', value: profile?.name },
                     { label: 'Parent ID', value: profile?.auto_id },
-                    { label: 'School', value: profile?.schools?.name },
+                    { label: 'School Portal', value: profile?.schools?.name },
                   ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 0, minWidth: 70 }}>{item.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.value || '-'}</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < 2 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{item.value || '—'}</span>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>Quick Links</div>
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                  <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>Quick Actions Portal</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {[
-                      { label: 'Attendance', icon: ClipboardList, color: '#34D399', tab: 'attendance' },
-                      { label: 'Marks', icon: BarChart3, color: '#A78BFA', tab: 'marks' },
-                      { label: 'Pay Fees', icon: Wallet, color: '#FBBF24', tab: 'fees' },
-                      { label: 'Diary / Homework', icon: ClipboardList, color: '#F472B6', tab: 'communication' },
-                      { label: 'Message Teacher', icon: MessageCircle, color: '#60A5FA', tab: 'messages' },
-                    ].map((action, i) => {
-                      const Icon = action.icon
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => action.tab === 'communication' ? (window.location.href = '/dashboard/parent/diary') : action.tab === 'messages' ? (window.location.href = '/dashboard/parent/messages') : setActiveTab(action.tab)}
-                          style={{
-                            padding: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 12, color: '#fff', cursor: 'pointer', textAlign: 'left',
-                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                            transition: 'transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.transform = 'translateY(-3px)'
-                            e.currentTarget.style.border = `1px solid ${action.color}99`
-                            e.currentTarget.style.boxShadow = `0 8px 20px -8px ${action.color}55`
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.transform = 'translateY(0)'
-                            e.currentTarget.style.border = '1px solid rgba(255,255,255,0.08)'
-                            e.currentTarget.style.boxShadow = 'none'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                            <div style={{ width: 30, height: 30, borderRadius: 8, background: `${action.color}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Icon size={15} style={{ color: action.color }} />
-                            </div>
-                            <ChevronRight size={13} style={{ color: 'rgba(255,255,255,0.25)' }} />
-                          </div>
-                          <div style={{ fontSize: 12, fontWeight: 600 }}>{action.label}</div>
-                        </button>
-                      )
-                    })}
+                      { label: 'Attendance logs', color: 'var(--accent-emerald)', tab: 'attendance' },
+                      { label: 'Marks card', color: 'var(--accent-purple)', tab: 'marks' },
+                      { label: 'Pay tuition fees', color: 'var(--accent-amber)', tab: 'fees' },
+                      { label: 'Child diary', color: 'var(--accent-cyan)', tab: 'diary' },
+                    ].map((action, i) => (
+                      <button
+                        key={i}
+                        onClick={() => action.tab === 'diary' ? (window.location.href = '/dashboard/parent/diary') : setActiveTab(action.tab)}
+                        style={{
+                          padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+                          borderRadius: 10, color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left',
+                          display: 'flex', flexDirection: 'column', gap: 6, transition: 'all 0.18s ease',
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NAVIGATE TO</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{action.label}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === 'attendance' && (
             <div>
-              {!marksLoaded ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
-              ) : !guardian ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Guardian profile not found. Contact admin.
-                </div>
-              ) : children.length === 0 ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Koi student aapke account se linked nahi hai. Contact admin.
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : ''}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {children.length > 1 && (
-                        <select value={selectedChild} onChange={e => setSelectedChild(e.target.value)}
-                          style={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 13 }}>
-                          {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      )}
-                      <input type="month" value={attMonth} max={new Date().toISOString().slice(0, 7)} onChange={e => setAttMonth(e.target.value)}
-                        className="[color-scheme:dark]"
-                        style={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 13 }} />
-                    </div>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 750, color: 'var(--text-primary)' }}>Attendance Logs for {attMonth}</span>
+                <input type="month" value={attMonth} max={new Date().toISOString().slice(0, 7)} onChange={e => setAttMonth(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }} />
+              </div>
 
-                  {(() => {
-                    const total = attendanceRecords.length
-                    const present = attendanceRecords.filter(r => r.status === 'present').length
-                    const absent = attendanceRecords.filter(r => r.status === 'absent').length
-                    const late = attendanceRecords.filter(r => r.status === 'late').length
-                    const pct = total ? Math.round((present / total) * 100) : 0
-                    return (
-                      <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-                          {[
-                            { label: 'Attendance %', value: `${pct}%`, color: pct >= 75 ? '#34D399' : '#F87171', icon: '📊' },
-                            { label: 'Present', value: present, color: '#34D399', icon: '✅' },
-                            { label: 'Absent', value: absent, color: '#F87171', icon: '❌' },
-                            { label: 'Late', value: late, color: '#FBBF24', icon: '⏰' },
-                          ].map((k, i) => (
-                            <div key={i} style={{ background: '#12102A', borderRadius: 14, padding: 16, border: '1px solid rgba(255,255,255,0.07)' }}>
-                              <div style={{ fontSize: 18, marginBottom: 6 }}>{k.icon}</div>
-                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
-                              <div style={{ fontSize: 22, fontWeight: 900, color: k.color }}>{k.value}</div>
-                            </div>
-                          ))}
+              {(() => {
+                const total = attendanceRecords.length
+                const present = attendanceRecords.filter(r => r.status === 'present').length
+                const absent = attendanceRecords.filter(r => r.status === 'absent').length
+                const late = attendanceRecords.filter(r => r.status === 'late').length
+                const pct = total ? Math.round((present / total) * 100) : 0
+                return (
+                  <>
+                    <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+                      {[
+                        { label: 'Attendance Ratio', value: `${pct}%`, color: pct >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)' },
+                        { label: 'Present Days', value: present, color: 'var(--accent-emerald)' },
+                        { label: 'Absent Days', value: absent, color: 'var(--accent-rose)' },
+                        { label: 'Late Days', value: late, color: 'var(--accent-amber)' },
+                      ].map((k, i) => (
+                        <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '16px 20px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 24, fontWeight: 800, color: k.color }}>{k.value}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{k.label}</div>
                         </div>
+                      ))}
+                    </div>
 
-                        {pct < 75 && total > 0 && (
-                          <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 12, padding: '10px 16px', marginBottom: 16, fontSize: 12, color: '#F87171' }}>
-                            ⚠️ Attendance 75% se neeche hai is mahine.
-                          </div>
-                        )}
-                      </>
-                    )
-                  })()}
-
-                  <div style={{ background: '#12102A', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                    {attendanceRecords.length === 0 ? (
-                      <div style={{ padding: 50, textAlign: 'center' }}>
-                        <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Is mahine ka koi record nahi mila.</div>
-                      </div>
-                    ) : (
-                      <table style={{ width: '100%', fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                            {['Date', 'Day', 'Status', 'Remarks'].map(h => (
-                              <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Status' ? 'center' : 'left', color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {attendanceRecords.map((r, i) => {
-                            const d = new Date(r.date)
-                            const statusColor: Record<string, string> = { present: '#34D399', absent: '#F87171', late: '#FBBF24' }
-                            return (
-                              <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '10px 16px' }}>{d.toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                                <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.5)' }}>{d.toLocaleDateString('en-PK', { weekday: 'short' })}</td>
-                                <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                                  <span style={{ background: `${statusColor[r.status]}22`, color: statusColor[r.status], padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: 'capitalize' }}>{r.status}</span>
-                                </td>
-                                <td style={{ padding: '10px 16px', color: 'rgba(255,255,255,0.4)' }}>{r.remarks || '-'}</td>
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                      {attendanceRecords.length === 0 ? (
+                        <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No logs recorded for this month.</p>
+                      ) : (
+                        <div className="table-wrap">
+                          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th>Date</th>
+                                <th>Day</th>
+                                <th style={{ textAlign: 'center' }}>Status</th>
+                                <th>Remarks</th>
                               </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </>
-              )}
+                            </thead>
+                            <tbody>
+                              {attendanceRecords.map((r, i) => {
+                                const d = new Date(r.date)
+                                return (
+                                  <tr key={i}>
+                                    <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                      {d.toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}
+                                    </td>
+                                    <td style={{ color: 'var(--text-secondary)' }}>
+                                      {d.toLocaleDateString("en-PK", { weekday: "long" })}
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span className={`status-badge ${r.status === "present" ? "active" : r.status === "absent" ? "inactive" : "pending"}`}>
+                                        {r.status}
+                                      </span>
+                                    </td>
+                                    <td style={{ color: 'var(--text-secondary)' }}>{r.remarks || "—"}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           )}
 
           {activeTab === 'marks' && (
             <div>
-              {!marksLoaded ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
-              ) : !guardian ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Guardian profile not found. Contact admin.
-                </div>
-              ) : children.length === 0 ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Koi student aapke account se linked nahi hai. Contact admin.
+              {terms.length === 0 ? (
+                <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center' }}>
+                  <Award style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No report card records published yet.</p>
                 </div>
               ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : ''}
-                    </div>
-                    {children.length > 1 && (
-                      <select value={selectedChild} onChange={e => setSelectedChild(e.target.value)}
-                        style={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 13 }}>
-                        {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-
-                  {terms.length === 0 ? (
-                    <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Abhi tak koi result published nahi hua.</div>
-                    </div>
-                  ) : (
-                    terms.map(term => {
-                      const records = byTerm[term]
-                      const avg = Math.round(records.reduce((sum, r) => sum + (r.marks / r.total_marks) * 100, 0) / records.length)
-                      return (
-                        <div key={term} style={{ background: '#12102A', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', marginBottom: 16 }}>
-                          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: 14, fontWeight: 800 }}>{term}</span>
-                            <span style={{ fontSize: 14, fontWeight: 800, color: '#A78BFA' }}>{avg}% average</span>
-                          </div>
-                          <table style={{ width: '100%', fontSize: 13 }}>
-                            <thead>
-                              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                                {['Subject', 'Marks', '%', 'Grade'].map(h => (
-                                  <th key={h} style={{ padding: '8px 20px', textAlign: h === 'Subject' ? 'left' : 'center', color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
-                                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {terms.map(term => (
+                    <div key={term} className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>{term}</span>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--accent-purple)' }}>{termAverage(byTerm[term])}% Average</span>
+                      </div>
+                      <div className="table-wrap">
+                        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th>Subject</th>
+                              <th style={{ textAlign: 'center' }}>Marks</th>
+                              <th style={{ textAlign: 'center' }}>Percentage %</th>
+                              <th style={{ textAlign: 'center' }}>Grade</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {byTerm[term].map((r, i) => (
+                              <tr key={i}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.subject}</td>
+                                <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{r.marks} / {r.total_marks}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>{Math.round((r.marks / r.total_marks) * 100)}%</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${gradeColor[r.grade]?.split(' ')[0] || "text-gray-400"} ${gradeColor[r.grade]?.split(' ')[1] || "bg-gray-500/10"}`}>{r.grade}</span>
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {records.map((r, i) => (
-                                <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                  <td style={{ padding: '10px 20px' }}>{r.subject}</td>
-                                  <td style={{ padding: '10px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>{r.marks} / {r.total_marks}</td>
-                                  <td style={{ padding: '10px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>{Math.round((r.marks / r.total_marks) * 100)}%</td>
-                                  <td style={{ padding: '10px 20px', textAlign: 'center' }}>
-                                    <span style={{ background: `${gradeColor[r.grade] || '#666'}22`, color: gradeColor[r.grade] || '#999', padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{r.grade}</span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    })
-                  )}
-                </>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
 
           {activeTab === 'fees' && (
             <div>
-              {!marksLoaded ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
-              ) : !guardian ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Guardian profile not found. Contact admin.
+              {/* Fee breakdown row */}
+              <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, borderTop: `3px solid ${totalDue > 0 ? "var(--accent-rose)" : "var(--accent-emerald)"}` }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Pending Dues</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: totalDue > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginTop: 6 }}>Rs {totalDue.toLocaleString()}</div>
                 </div>
-              ) : children.length === 0 ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Koi student aapke account se linked nahi hai. Contact admin.
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, borderTop: '3px solid var(--accent-emerald)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Paid Fees</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-emerald)', marginTop: 6 }}>Rs {totalPaid.toLocaleString()}</div>
                 </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : ''}
-                    </div>
-                    {children.length > 1 && (
-                      <select value={selectedChild} onChange={e => setSelectedChild(e.target.value)}
-                        style={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 13 }}>
-                        {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    )}
+              </div>
+
+              {pendingFees.length > 0 && (
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden', marginBottom: 20 }}>
+                  <div style={{ padding: '14px 20px', background: 'rgba(244,63,94,0.06)', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--accent-rose)' }}>⏳ Pending Dues ({pendingFees.length})</span>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                    <div style={{ background: '#12102A', borderRadius: 14, padding: 18, border: `1px solid ${totalDue > 0 ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.07)'}` }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 6 }}>Total Pending</div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: totalDue > 0 ? '#F87171' : '#34D399' }}>Rs {totalDue.toLocaleString()}</div>
-                    </div>
-                    <div style={{ background: '#12102A', borderRadius: 14, padding: 18, border: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 6 }}>Total Paid</div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: '#34D399' }}>Rs {totalPaid.toLocaleString()}</div>
-                    </div>
-                  </div>
-
-                  {pendingFees.length > 0 && (
-                    <div style={{ background: '#12102A', borderRadius: 16, border: '1px solid rgba(220,38,38,0.2)', overflow: 'hidden', marginBottom: 16 }}>
-                      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(220,38,38,0.15)', background: 'rgba(220,38,38,0.08)' }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: '#F87171' }}>⏳ Pending Dues ({pendingFees.length})</span>
-                      </div>
-                      <table style={{ width: '100%', fontSize: 13 }}>
-                        <tbody>
-                          {pendingFees.map(r => (
-                            <tr key={r.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '10px 20px' }}>{r.month}</td>
-                              <td style={{ padding: '10px 20px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>{r.fee_type}</td>
-                              <td style={{ padding: '10px 20px', textAlign: 'right', fontWeight: 700, color: '#F87171' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div style={{ background: '#12102A', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span style={{ fontSize: 14, fontWeight: 800 }}>Payment History</span>
-                    </div>
-                    {paidFees.length === 0 ? (
-                      <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Abhi tak koi payment record nahi hai.</div>
-                    ) : (
-                      <table style={{ width: '100%', fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                            {['Month', 'Fee Type', 'Amount', 'Mode', 'Paid On'].map(h => (
-                              <th key={h} style={{ padding: '8px 20px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
-                            ))}
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <tbody>
+                        {pendingFees.map(r => (
+                          <tr key={r.id}>
+                            <td style={{ fontWeight: 700 }}>{r.month}</td>
+                            <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{r.fee_type}</td>
+                            <td style={{ fontWeight: 800, color: 'var(--accent-rose)', textAlign: 'right' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {paidFees.map(r => (
-                            <tr key={r.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '10px 20px' }}>{r.month}</td>
-                              <td style={{ padding: '10px 20px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>{r.fee_type}</td>
-                              <td style={{ padding: '10px 20px', fontWeight: 700, color: '#34D399' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
-                              <td style={{ padding: '10px 20px', color: 'rgba(255,255,255,0.5)' }}>{r.payment_mode || '-'}</td>
-                              <td style={{ padding: '10px 20px', color: 'rgba(255,255,255,0.4)' }}>{r.paid_at ? new Date(r.paid_at).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </>
+                </div>
               )}
+
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontWeight: 850, fontSize: 14, color: 'var(--text-primary)' }}>Payment History ledger</span>
+                </div>
+                {paidFees.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No payment logs recorded.</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th>Fee Type</th>
+                          <th>Amount</th>
+                          <th>Method</th>
+                          <th>Receipt #</th>
+                          <th>Paid On</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paidFees.map(r => (
+                          <tr key={r.id}>
+                            <td style={{ fontWeight: 750 }}>{r.month}</td>
+                            <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{r.fee_type}</td>
+                            <td style={{ fontWeight: 800, color: 'var(--accent-emerald)' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
+                            <td>{r.payment_mode || "—"}</td>
+                            <td style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{r.receipt_no || "—"}</td>
+                            <td style={{ color: 'var(--text-secondary)' }}>
+                              {r.paid_at ? new Date(r.paid_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'timetable' && (
-            <div>
-              {!marksLoaded ? (
-                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
-              ) : !guardian ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Guardian profile not found. Contact admin.
-                </div>
-              ) : children.length === 0 ? (
-                <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.4)' }}>
-                  Koi student aapke account se linked nahi hai. Contact admin.
+            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+              {ttPeriods.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center' }}>
+                  <Calendar style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Class timetable schedule not published yet.</p>
                 </div>
               ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : ''}
-                    </div>
-                    {children.length > 1 && (
-                      <select value={selectedChild} onChange={e => setSelectedChild(e.target.value)}
-                        style={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 13 }}>
-                        {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-
-                  {ttPeriods.length === 0 ? (
-                    <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontSize: 48, marginBottom: 16 }}>🗓️</div>
-                      <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Abhi timetable set nahi hua.</div>
-                    </div>
-                  ) : (
-                    <div style={{ background: '#12102A', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto' }}>
-                      <table style={{ width: '100%', minWidth: 560, fontSize: 12 }}>
-                        <thead>
-                          <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                            <th style={{ padding: '10px 12px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase', width: 60 }}>Period</th>
-                            {DAYS.map(d => (
-                              <th key={d} style={{ padding: '10px 8px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase' }}>{DAY_LABELS[d]}</th>
-                            ))}
+                <div className="table-wrap">
+                  <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 120 }}>Period</th>
+                        {DAYS.map(d => (
+                          <th key={d} style={{ textAlign: 'center' }}>{d}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ttPeriods.map(p => {
+                        const sample = Object.values(ttGrid[p])[0] as any;
+                        return (
+                          <tr key={p}>
+                            <td style={{ verticalAlign: 'top', padding: '14px 16px' }}>
+                              <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14.5 }}>Period {p}</div>
+                              {sample && (
+                                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap' }}>
+                                  {fmtTime(sample.start_time)} – {fmtTime(sample.end_time)}
+                                </div>
+                              )}
+                            </td>
+                            {DAYS.map(d => {
+                              const entry = ttGrid[p]?.[d];
+                              let bg = 'var(--bg-elevated)';
+                              let border = '1px solid var(--border-subtle)';
+                              let color = 'var(--text-primary)';
+                              if (entry && ttSubjectColor[entry.subject]) {
+                                const parts = ttSubjectColor[entry.subject].split(' ');
+                                bg = parts[0];
+                                border = `1px solid ${parts[1]}`;
+                                color = parts[2];
+                              }
+                              return (
+                                <td key={d} style={{ verticalAlign: 'top', padding: '8px 10px' }}>
+                                  {entry ? (
+                                    <div style={{ background: bg, border: border, borderRadius: 10, padding: 12, textAlign: 'center' }}>
+                                      <div style={{ fontSize: 13, fontWeight: 800, color: color }}>{entry.subject}</div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '10px 0' }}>—</div>
+                                  )}
+                                </td>
+                              );
+                            })}
                           </tr>
-                        </thead>
-                        <tbody>
-                          {ttPeriods.map(p => (
-                            <tr key={p} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '8px 12px', color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>P{p}</td>
-                              {DAYS.map(d => {
-                                const entry = ttGrid[p]?.[d]
-                                return (
-                                  <td key={d} style={{ padding: '6px 6px', textAlign: 'center' }}>
-                                    {entry ? (
-                                      <div style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 8, padding: '6px 4px', fontSize: 11, fontWeight: 700, color: '#C4B5FD' }}>
-                                        {entry.subject}
-                                      </div>
-                                    ) : (
-                                      <span style={{ color: 'rgba(255,255,255,0.15)' }}>—</span>
-                                    )}
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
-
-          {activeTab !== 'overview' && activeTab !== 'attendance' && activeTab !== 'marks' && activeTab !== 'fees' && activeTab !== 'timetable' && activeTab !== 'communication' && activeTab !== 'messages' && (
-            <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>
-                {{attendance: '📋'}[activeTab]}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize' }}>{activeTab}</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Coming soon — agle update mein!</div>
-            </div>
-          )}
-        </div>
+        </>
       )}
-    </div>
+    </DashboardLayout>
   )
 }

@@ -1,6 +1,9 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { GraduationCap, CheckCircle2, Search } from 'lucide-react'
+import DashboardLayout from '../../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
@@ -47,6 +50,7 @@ export default function StudentsManagement() {
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
+    setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
@@ -57,7 +61,7 @@ export default function StudentsManagement() {
       .single()
 
     const schoolId = profile?.school_id
-    if (!schoolId) { setErrMsg('School ID nahi mili.'); setLoading(false); return }
+    if (!schoolId) { setErrMsg('School ID not found.'); setLoading(false); return }
 
     const [sRes, bRes] = await Promise.all([
       supabase
@@ -130,250 +134,260 @@ export default function StudentsManagement() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Gradient header banner */}
-      <div className="bg-gradient-to-r from-orange-800 to-amber-800 px-4 md:px-6 pt-6 pb-8">
-        <div className="max-w-6xl mx-auto">
-          <a href="/dashboard/school-owner" className="inline-flex items-center gap-1 text-sm text-orange-200 hover:text-white mb-3 font-medium">
-            <span aria-hidden="true">←</span> Dashboard
-          </a>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2 mb-5">
-            🎓 Students Management
-          </h1>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-2xl mb-1">👥</div>
-              <div className="text-3xl font-bold text-white">{students.length}</div>
-              <div className="text-orange-200 text-xs mt-0.5">Total Students</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-2xl mb-1">🔍</div>
-              <div className="text-3xl font-bold text-white">{filtered.length}</div>
-              <div className="text-orange-200 text-xs mt-0.5">Showing</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-2xl mb-1">👨‍👩‍👧</div>
-              <div className="text-3xl font-bold text-white">{students.filter(s => (s.discount_pct || 0) > 0).length}</div>
-              <div className="text-orange-200 text-xs mt-0.5">Sibling Discount</div>
-            </div>
-          </div>
+    <DashboardLayout
+      role="school-owner"
+      activePath="/dashboard/school-owner/students"
+      onSearchChange={(v) => setSearch(v)}
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🎓 Students Management</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Manage school system students database, profiles and active states.</p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-4 md:p-6 -mt-2">
-        {/* Filters */}
-        <div className="flex gap-3 flex-wrap mb-5">
+      {errMsg && (
+        <div style={{ padding: 12, background: 'rgba(244,63,94,0.1)', color: 'var(--accent-rose)', borderRadius: 10, marginBottom: 16 }}>
+          {errMsg}
+        </div>
+      )}
+
+      {/* Stats KPI */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+        <div className="kpi-card violet" style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 14,
+          padding: '18px 20px',
+          borderTop: `3px solid var(--accent-purple)`,
+          minHeight: 108, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, fontWeight: "600", textTransform: "uppercase" }}>Total Students</div>
+            <GraduationCap size={18} style={{ color: 'var(--accent-purple)', flexShrink: 0 }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{students.length}</div>
+        </div>
+        <div className="kpi-card emerald" style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 14,
+          padding: '18px 20px',
+          borderTop: `3px solid var(--accent-emerald)`,
+          minHeight: 108, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, fontWeight: "600", textTransform: "uppercase" }}>Active Students</div>
+            <CheckCircle2 size={18} style={{ color: 'var(--accent-emerald)', flexShrink: 0 }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{students.filter(s => s.active).length}</div>
+        </div>
+        <div className="kpi-card cyan" style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 14,
+          padding: '18px 20px',
+          borderTop: `3px solid var(--accent-cyan)`,
+          minHeight: 108, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, fontWeight: "600", textTransform: "uppercase" }}>Filtered List</div>
+            <Search size={18} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{filtered.length}</div>
+        </div>
+      </div>
+
+      {/* Filters Toolbar */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <input
-            placeholder="🔍 Search by name, ID, guardian, GR#..."
+            placeholder="🔍 Search name, GR number, guardian name..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="flex-1 min-w-[220px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm"
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
           />
-          <select
-            value={gradeFilter}
-            onChange={e => setGradeFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm"
-          >
-            <option value="all">All Grades</option>
-            {GRADES.map(g => <option key={g} value={g}>Grade {g}</option>)}
-          </select>
+        </div>
+        <div>
           <select
             value={branchFilter}
             onChange={e => setBranchFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white shadow-sm"
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
           >
             <option value="all">All Branches</option>
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
-
-        {errMsg && (
-          <div className="bg-white rounded-xl shadow-sm border border-red-200 p-3.5 mb-4 text-red-600 text-sm">
-            {errMsg}
-          </div>
-        )}
-
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          {loading ? (
-            <div className="p-10 text-center text-gray-400">Loading students...</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-10 text-center text-gray-400">
-              No students found. Try a different search or filter.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    {['Name', 'Student ID', 'Class', 'Guardian (GR#)', 'Branch', 'Discount', 'Status', 'Actions'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filtered.map(s => (
-                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-sm font-bold text-orange-700 flex-shrink-0">
-                            {(s.name || '?').charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-medium text-gray-900">{s.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{s.auto_id || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{s.grade ? `${s.grade}-${s.section || ''}` : '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {s.guardians ? (
-                          <>
-                            {s.guardians.name}
-                            <div className="text-xs text-gray-400 font-mono">{s.guardians.gr_number}</div>
-                          </>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{s.branches?.name || '—'}</td>
-                      <td className="px-4 py-3">
-                        {(s.discount_pct || 0) > 0 ? (
-                          <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
-                            {s.discount_pct}% 👨‍👩‍👧
-                          </span>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                          (s.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                          {(s.active ?? true) ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setViewStudent(s)}
-                            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
-                          >View</button>
-                          <button
-                            onClick={() => openEdit(s)}
-                            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
-                          >Edit</button>
-                          <button
-                            onClick={() => toggleActive(s)}
-                            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                              (s.active ?? true) ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'
-                            }`}
-                          >
-                            {(s.active ?? true) ? 'Disable' : 'Enable'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div>
+          <select
+            value={gradeFilter}
+            onChange={e => setGradeFilter(e.target.value)}
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+          >
+            <option value="all">All Grades</option>
+            {GRADES.map(g => <option key={g} value={g}>Grade {g}</option>)}
+          </select>
         </div>
       </div>
 
-      {/* View Modal */}
+      {/* Table */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading student records...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students match database filters.</div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th>Student Info</th>
+                  <th>ID / Roll</th>
+                  <th>Grade & Sec</th>
+                  <th>Guardian</th>
+                  <th>Branch</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => (
+                  <tr key={s.id}>
+                    <td>
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</div>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                      {s.auto_id || '—'} {s.roll_number !== null ? `(Roll: ${s.roll_number})` : ''}
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                        Grade {s.grade || '—'} - {s.section || 'A'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{s.guardians?.name || '—'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>GR: {s.guardians?.gr_number || '—'}</div>
+                    </td>
+                    <td>{s.branches?.name || '—'}</td>
+                    <td>
+                      <span className={`status-badge ${(s.active ?? true) ? 'active' : 'inactive'}`}>
+                        {(s.active ?? true) ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setViewStudent(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>View</button>
+                        <button onClick={() => openEdit(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>Edit</button>
+                        <button onClick={() => toggleActive(s)} className="row-btn" style={{
+                          background: (s.active ?? true) ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
+                          color: (s.active ?? true) ? 'var(--accent-rose)' : 'var(--accent-emerald)',
+                          border: 'none'
+                        }}>
+                          {(s.active ?? true) ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* View Student Modal */}
       {viewStudent && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setViewStudent(null)}>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Student Details</h2>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400 }}>
+            <h3 style={{ margin: '0 0 20px', color: 'var(--text-primary)', fontSize: 18, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>Student Details</h3>
             {[
-              ['Name', viewStudent.name],
+              ['Full Name', viewStudent.name || '—'],
               ['Student ID', viewStudent.auto_id || '—'],
-              ['Class', viewStudent.grade ? `Grade ${viewStudent.grade} — Section ${viewStudent.section || ''}` : '—'],
-              ['Roll Number', viewStudent.roll_number?.toString() || '—'],
               ['Date of Birth', viewStudent.dob || '—'],
               ['Blood Group', viewStudent.blood_group || '—'],
-              ['Guardian', viewStudent.guardians ? `${viewStudent.guardians.name} (${viewStudent.guardians.gr_number})` : '—'],
-              ['Guardian Phone', viewStudent.guardians?.phone || '—'],
+              ['Grade & Section', `Grade ${viewStudent.grade || '—'} - ${viewStudent.section || 'A'}`],
               ['Branch', viewStudent.branches?.name || '—'],
-              ['Sibling Order', viewStudent.sibling_order?.toString() || '—'],
-              ['Sibling Discount', (viewStudent.discount_pct || 0) > 0 ? `${viewStudent.discount_pct}%` : 'None'],
-              ['Emergency Phone', viewStudent.emergency_phone || '—'],
+              ['Guardian Name', viewStudent.guardians?.name || '—'],
+              ['Guardian GR', viewStudent.guardians?.gr_number || '—'],
+              ['Guardian Phone', viewStudent.guardians?.phone || '—'],
+              ['Discount Ratio', `${viewStudent.discount_pct || 0}%`],
               ['Status', (viewStudent.active ?? true) ? 'Active' : 'Inactive'],
             ].map(([k, v]) => (
-              <div key={k} className="mb-3">
-                <span className="text-xs text-gray-400 block mb-0.5">{k}</span>
-                <div className="text-sm font-medium text-gray-900">{v}</div>
+              <div key={k} style={{ marginBottom: 12 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>{k}</span>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{v}</div>
               </div>
             ))}
             <button
               onClick={() => setViewStudent(null)}
-              className="w-full mt-3 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-            >Close</button>
+              style={{ width: '100%', padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+            >Close Details</button>
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Student Modal */}
       {editStudent && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditStudent(null)}>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Edit Student</h2>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 400 }}>
+            <h3 style={{ margin: '0 0 20px', color: 'var(--text-primary)', fontSize: 18, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>Edit Student Info</h3>
 
-            <div className="mb-3">
-              <label className="text-xs text-gray-400 block mb-1">Full Name</label>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Full Name</label>
               <input
                 value={editForm.name}
                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', outline: 'none', color: 'var(--text-primary)' }}
               />
             </div>
 
-            <div className="flex gap-3 mb-3">
-              <div className="flex-1">
-                <label className="text-xs text-gray-400 block mb-1">Grade</label>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Grade</label>
                 <select
                   value={editForm.grade}
                   onChange={e => setEditForm({ ...editForm, grade: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, boxSizing: 'border-box', outline: 'none', color: 'var(--text-primary)' }}
                 >
                   {GRADES.map(g => <option key={g} value={g}>Grade {g}</option>)}
                 </select>
               </div>
-              <div className="flex-1">
-                <label className="text-xs text-gray-400 block mb-1">Section</label>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Section</label>
                 <input
                   value={editForm.section}
                   onChange={e => setEditForm({ ...editForm, section: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', outline: 'none', color: 'var(--text-primary)' }}
                 />
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="text-xs text-gray-400 block mb-1">Branch</label>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Branch</label>
               <select
                 value={editForm.branch_id}
                 onChange={e => setEditForm({ ...editForm, branch_id: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, boxSizing: 'border-box', outline: 'none', color: 'var(--text-primary)' }}
               >
                 <option value="">No Branch</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
 
-            {msg && <div className="text-red-600 text-sm mb-3">{msg}</div>}
+            {msg && <div style={{ color: 'var(--accent-rose)', fontSize: 12.5, marginBottom: 12 }}>{msg}</div>}
 
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setEditStudent(null)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
               <button
                 onClick={saveEdit}
                 disabled={saving}
-                className="flex-1 bg-orange-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                style={{ flex: 2, padding: '12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
               >{saving ? 'Saving...' : 'Save Changes'}</button>
-              <button
-                onClick={() => setEditStudent(null)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >Cancel</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   )
 }

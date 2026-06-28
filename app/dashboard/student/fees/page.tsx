@@ -1,7 +1,8 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Wallet } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -45,88 +46,103 @@ export default function StudentFeesPage() {
   const totalPaid = paid.reduce((sum, r) => sum + (r.net_amount || r.amount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-3xl mx-auto">
-        <a href="/dashboard/student" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mb-3 font-medium">
-          <ArrowLeft size={14} /> Back to Dashboard
-        </a>
-
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900">Fee Status</h1>
-          <p className="text-gray-500 text-sm mt-1">
+    <DashboardLayout
+      role="student"
+      activePath="/dashboard/student/fees"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>💰 Fee Ledger Status</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
             {student ? `${student.name} · Grade ${student.grade} - Section ${student.section}` : "Loading..."}
           </p>
         </div>
+      </div>
 
-        {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Loading...</div>
-        ) : !student ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Student profile not found. Contact admin.</div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div className={`rounded-xl border p-4 ${totalDue > 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
-                <div className="text-xs text-gray-500 mb-1">Total Pending</div>
-                <div className={`text-2xl font-bold ${totalDue > 0 ? "text-red-600" : "text-green-600"}`}>Rs {totalDue.toLocaleString()}</div>
-              </div>
-              <div className="rounded-xl border bg-green-50 border-green-200 p-4">
-                <div className="text-xs text-gray-500 mb-1">Total Paid</div>
-                <div className="text-2xl font-bold text-green-700">Rs {totalPaid.toLocaleString()}</div>
-              </div>
+      {loading ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Loading billing data...</div>
+      ) : !student ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Student profile not found.</div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18,
+              borderTop: `3px solid ${totalDue > 0 ? "var(--accent-rose)" : "var(--accent-emerald)"}`
+            }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Pending Dues</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: totalDue > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginTop: 6 }}>Rs {totalDue.toLocaleString()}</div>
             </div>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, borderTop: '3px solid var(--accent-emerald)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Paid Fees</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-emerald)', marginTop: 6 }}>Rs {totalPaid.toLocaleString()}</div>
+            </div>
+          </div>
 
-            {pending.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-red-100 overflow-hidden mb-4">
-                <div className="px-4 py-3 bg-red-50 border-b border-red-100">
-                  <span className="font-bold text-sm text-red-700">⏳ Pending Dues ({pending.length})</span>
-                </div>
-                <table className="w-full">
-                  <tbody className="divide-y divide-gray-50">
+          {/* Pending Dues card */}
+          {pending.length > 0 && (
+            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden', marginBottom: 20 }}>
+              <div style={{ padding: '14px 20px', background: 'rgba(244,63,94,0.06)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--accent-rose)' }}>⏳ Pending Dues ({pending.length})</span>
+              </div>
+              <div className="table-wrap">
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <tbody>
                     {pending.map(r => (
                       <tr key={r.id}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.month}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 capitalize">{r.fee_type}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-red-600 text-right">Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
+                        <td style={{ fontWeight: 700 }}>{r.month}</td>
+                        <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{r.fee_type}</td>
+                        <td style={{ fontWeight: 800, color: 'var(--accent-rose)', textAlign: 'right' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Payment History card */}
+          <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontWeight: 850, fontSize: 14, color: 'var(--text-primary)' }}>Payment History ledger</span>
+            </div>
+            {paid.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No payment logs recorded.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>Fee Type</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Receipt #</th>
+                      <th>Paid On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paid.map(r => (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 750 }}>{r.month}</td>
+                        <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{r.fee_type}</td>
+                        <td style={{ fontWeight: 800, color: 'var(--accent-emerald)' }}>Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
+                        <td>{r.payment_mode || "—"}</td>
+                        <td style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{r.receipt_no || "—"}</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          {r.paid_at ? new Date(r.paid_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <span className="font-bold text-sm text-gray-800">Payment History</span>
-              </div>
-              {paid.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-sm">Abhi tak koi payment record nahi hai.</div>
-              ) : (
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      {["Month", "Fee Type", "Amount", "Mode", "Receipt", "Paid On"].map(h => (
-                        <th key={h} className="px-4 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {paid.map(r => (
-                      <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.month}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 capitalize">{r.fee_type}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-green-600">Rs {(r.net_amount || r.amount || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{r.payment_mode || "-"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-400">{r.receipt_no || "-"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-400">{r.paid_at ? new Date(r.paid_at).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          </div>
+        </>
+      )}
+    </DashboardLayout>
   );
 }

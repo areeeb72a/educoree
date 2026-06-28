@@ -1,7 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Award } from "lucide-react";
+import { Award } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -9,10 +11,10 @@ const supabase = createClient(
 );
 
 const gradeColor: Record<string, string> = {
-  "A+": "text-green-700 bg-green-100", "A": "text-green-700 bg-green-100",
-  "B+": "text-blue-700 bg-blue-100", "B": "text-blue-700 bg-blue-100",
-  "C": "text-yellow-700 bg-yellow-100", "D": "text-orange-700 bg-orange-100",
-  "F": "text-red-700 bg-red-100",
+  "A+": "text-green-400 bg-green-500/10", "A": "text-green-400 bg-green-500/10",
+  "B+": "text-blue-400 bg-blue-500/10", "B": "text-blue-400 bg-blue-500/10",
+  "C": "text-yellow-400 bg-yellow-500/10", "D": "text-orange-400 bg-orange-500/10",
+  "F": "text-red-400 bg-red-500/10",
 };
 
 export default function StudentMarksPage() {
@@ -64,67 +66,69 @@ export default function StudentMarksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-3xl mx-auto">
-        <a href="/dashboard/student" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mb-3 font-medium">
-          <ArrowLeft size={14} /> Back to Dashboard
-        </a>
-
-        <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Marks</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              {student ? `${student.name} · Grade ${student.grade} - Section ${student.section}` : "Loading..."}
-            </p>
-          </div>
-          <select value={year} onChange={e => setYear(parseInt(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {[year, year - 1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+    <DashboardLayout
+      role="student"
+      activePath="/dashboard/student/marks"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🏆 My Academic Results</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            {student ? `${student.name} · Grade ${student.grade} - Section ${student.section}` : "Loading..."}
+          </p>
         </div>
-
-        {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Loading...</div>
-        ) : !student ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Student profile not found. Contact admin.</div>
-        ) : terms.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-            <Award className="mx-auto text-gray-300 mb-3" size={40} />
-            <p className="text-gray-400">Abhi tak koi result published nahi hua.</p>
-          </div>
-        ) : (
-          terms.map(term => (
-            <div key={term} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                <span className="font-bold text-sm text-gray-800">{term}</span>
-                <span className="text-sm font-bold text-blue-600">{termAverage(byTerm[term])}% average</span>
-              </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-50">
-                    <th className="px-4 py-2 text-left text-xs text-gray-500 uppercase tracking-wide">Subject</th>
-                    <th className="px-4 py-2 text-center text-xs text-gray-500 uppercase tracking-wide">Marks</th>
-                    <th className="px-4 py-2 text-center text-xs text-gray-500 uppercase tracking-wide">%</th>
-                    <th className="px-4 py-2 text-center text-xs text-gray-500 uppercase tracking-wide">Grade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {byTerm[term].map((r, i) => (
-                    <tr key={i} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.subject}</td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600">{r.marks} / {r.total_marks}</td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600">{Math.round((r.marks / r.total_marks) * 100)}%</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-xs px-3 py-1 rounded-full font-bold ${gradeColor[r.grade] || "text-gray-500 bg-gray-100"}`}>{r.grade}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))
-        )}
+        <select value={year} onChange={e => setYear(parseInt(e.target.value))}
+          style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+          {[year, year - 1].map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
-    </div>
+
+      {loading ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Loading academic reports...</div>
+      ) : !student ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Student profile not found.</div>
+      ) : terms.length === 0 ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center' }}>
+          <Award style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No published report cards for this school year.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {terms.map(term => (
+            <div key={term} className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>{term}</span>
+                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--accent-purple)' }}>{termAverage(byTerm[term])}% Average</span>
+              </div>
+              <div className="table-wrap">
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th style={{ textAlign: 'center' }}>Marks Obtained</th>
+                      <th style={{ textAlign: 'center' }}>Percentage %</th>
+                      <th style={{ textAlign: 'center' }}>Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byTerm[term].map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.subject}</td>
+                        <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{r.marks} / {r.total_marks}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)' }}>{Math.round((r.marks / r.total_marks) * 100)}%</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`text-xs px-3 py-1 rounded-full font-bold ${gradeColor[r.grade]?.split(' ')[0] || "text-gray-400"} ${gradeColor[r.grade]?.split(' ')[1] || "bg-gray-500/10"}`}>{r.grade}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

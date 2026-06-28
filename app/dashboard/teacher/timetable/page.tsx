@@ -1,7 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -12,14 +14,14 @@ const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
 const DAY_LABELS: Record<string, string> = { MON: "Monday", TUE: "Tuesday", WED: "Wednesday", THU: "Thursday", FRI: "Friday" };
 
 const subjectColor: Record<string, string> = {
-  Mathematics: "bg-blue-50 border-blue-200 text-blue-800",
-  Science: "bg-green-50 border-green-200 text-green-800",
-  English: "bg-purple-50 border-purple-200 text-purple-800",
-  Urdu: "bg-orange-50 border-orange-200 text-orange-800",
-  Islamiat: "bg-teal-50 border-teal-200 text-teal-800",
-  "Social Studies": "bg-pink-50 border-pink-200 text-pink-800",
-  Arts: "bg-yellow-50 border-yellow-200 text-yellow-800",
-  Computer: "bg-indigo-50 border-indigo-200 text-indigo-800",
+  Mathematics: "rgba(59,130,246,0.1) rgba(59,130,246,0.3) #3b82f6",
+  Science: "rgba(16,185,129,0.1) rgba(16,185,129,0.3) #10b981",
+  English: "rgba(139,92,246,0.1) rgba(139,92,246,0.3) #8b5cf6",
+  Urdu: "rgba(245,158,11,0.1) rgba(245,158,11,0.3) #f59e0b",
+  Islamiat: "rgba(6,182,212,0.1) rgba(6,182,212,0.3) #06b6d4",
+  "Social Studies": "rgba(236,72,153,0.1) rgba(236,72,153,0.3) #ec4899",
+  Arts: "rgba(224,242,254,0.1) rgba(14,165,233,0.3) #0ea5e9",
+  Computer: "rgba(99,102,241,0.1) rgba(99,102,241,0.3) #6366f1",
 };
 
 function fmtTime(t: string) {
@@ -63,77 +65,87 @@ export default function TeacherTimetablePage() {
   const classesCount = new Set(entries.map(e => `${e.grade}-${e.section}`)).size;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Gradient header banner */}
-      <div className="bg-gradient-to-r from-indigo-700 to-blue-800 px-4 md:px-6 pt-6 pb-8">
-        <div className="max-w-5xl mx-auto">
-          <a href="/dashboard/teacher" className="inline-flex items-center gap-1 text-sm text-indigo-200 hover:text-white mb-3 font-medium">
-            <ArrowLeft size={14} /> Back to Dashboard
-          </a>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2 mb-5">
-            🗓️ My Timetable
-          </h1>
-          <div className="grid grid-cols-3 gap-3 max-w-lg">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">📚</div>
-              <div className="text-2xl font-extrabold text-white">{entries.length}</div>
-              <div className="text-indigo-200 text-xs mt-0.5">Total Periods</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">📘</div>
-              <div className="text-2xl font-extrabold text-white">{subjectsCount}</div>
-              <div className="text-indigo-200 text-xs mt-0.5">Subjects</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="text-xl mb-1">🏫</div>
-              <div className="text-2xl font-extrabold text-white">{classesCount}</div>
-              <div className="text-indigo-200 text-xs mt-0.5">Classes</div>
-            </div>
-          </div>
+    <DashboardLayout
+      role="teacher"
+      activePath="/dashboard/teacher/timetable"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>🗓️ Timetable Schedule</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Weekly teaching schedule and class timings.</p>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 md:p-6 -mt-2">
-        <p className="text-gray-500 text-sm mb-4">Aapka weekly teaching schedule</p>
+      {/* KPI Cards */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Weekly Periods</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>{entries.length}</div>
+        </div>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Subjects Taught</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-purple)', marginTop: 4 }}>{subjectsCount}</div>
+        </div>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Classes Covered</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-cyan)', marginTop: 4 }}>{classesCount}</div>
+        </div>
+      </div>
 
+      {/* Timetable card */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Loading...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading weekly schedule...</div>
         ) : periods.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-            <Calendar className="mx-auto text-gray-300 mb-3" size={40} />
-            <p className="text-gray-400">Abhi koi period assign nahi hua.</p>
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <Calendar style={{ color: 'var(--text-muted)', marginBottom: 12 }} size={40} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No periods assigned to you for this week.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+          <div className="table-wrap">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-3 py-3 text-left text-xs text-gray-500 uppercase tracking-wide w-20">Period</th>
+                <tr>
+                  <th style={{ width: 120 }}>Period</th>
                   {DAYS.map(d => (
-                    <th key={d} className="px-3 py-3 text-center text-xs text-gray-500 uppercase tracking-wide">{DAY_LABELS[d]}</th>
+                    <th key={d} style={{ textAlign: 'center' }}>{DAY_LABELS[d]}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody>
                 {periods.map(p => {
                   const sample = Object.values(grid[p])[0] as any;
                   return (
                     <tr key={p}>
-                      <td className="px-3 py-2 text-sm text-gray-500 align-top">
-                        <div className="font-bold text-gray-700">P{p}</div>
-                        {sample && <div className="text-[11px] text-gray-400 whitespace-nowrap">{fmtTime(sample.start_time)}–{fmtTime(sample.end_time)}</div>}
+                      <td style={{ verticalAlign: 'top', padding: '14px 16px' }}>
+                        <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14.5 }}>Period {p}</div>
+                        {sample && (
+                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap' }}>
+                            {fmtTime(sample.start_time)} – {fmtTime(sample.end_time)}
+                          </div>
+                        )}
                       </td>
                       {DAYS.map(d => {
                         const entry = grid[p]?.[d];
+                        let bg = 'var(--bg-elevated)';
+                        let border = '1px solid var(--border-subtle)';
+                        let color = 'var(--text-primary)';
+                        if (entry && subjectColor[entry.subject]) {
+                          const parts = subjectColor[entry.subject].split(' ');
+                          bg = parts[0];
+                          border = `1px solid ${parts[1]}`;
+                          color = parts[2];
+                        }
                         return (
-                          <td key={d} className="px-2 py-2 align-top">
+                          <td key={d} style={{ verticalAlign: 'top', padding: '8px 10px' }}>
                             {entry ? (
-                              <div className={`rounded-lg border px-2 py-2 text-center ${subjectColor[entry.subject] || "bg-gray-50 border-gray-200 text-gray-700"}`}>
-                                <div className="text-xs font-bold">{entry.subject}</div>
-                                <div className="text-[11px] mt-0.5 opacity-75">Grade {entry.grade}-{entry.section}</div>
+                              <div style={{ background: bg, border: border, borderRadius: 10, padding: 10, textAlign: 'center' }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: color }}>{entry.subject}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Grade {entry.grade}-{entry.section}</div>
                               </div>
                             ) : (
-                              <div className="text-center text-gray-300 text-xs py-2">—</div>
+                              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '12px 0' }}>—</div>
                             )}
                           </td>
                         );
@@ -146,6 +158,6 @@ export default function TeacherTimetablePage() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

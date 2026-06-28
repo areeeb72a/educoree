@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import DashboardLayout from '../../../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
@@ -57,6 +58,20 @@ export default function SchoolDetailPage() {
   const [creatingOwner, setCreatingOwner] = useState(false)
   const [createOwnerMsg, setCreateOwnerMsg] = useState('')
 
+  // delist school states
+  const [showDelistModal, setShowDelistModal] = useState(false)
+  const [generatedDelistLink, setGeneratedDelistLink] = useState('')
+
+  function requestSchoolDelist() {
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    const savedData = { token, expiresAt: Date.now() + 15 * 60 * 1000 }
+    localStorage.setItem('delist_token_' + schoolId, JSON.stringify(savedData))
+
+    const confirmLink = `${window.location.origin}/dashboard/super-admin/confirm-delist?token=${token}&schoolId=${schoolId}`
+    setGeneratedDelistLink(confirmLink)
+    setShowDelistModal(true)
+  }
+
   useEffect(() => { fetchData() }, [schoolId])
 
   async function fetchData() {
@@ -69,7 +84,7 @@ export default function SchoolDetailPage() {
       const { data: ownerData } = await supabase.from('profiles').select('name, auto_id, phone').eq('id', schoolData.owner_id).single()
       let ownerEmail = ''
       try {
-        const emailRes = await fetch(`/api/super-admin/get-user-email?userId=${schoolData.owner_id}`)
+        const emailRes = await fetch(`/dashboard/super-admin/get-user-email?userId=${schoolData.owner_id}`)
         const emailResult = await emailRes.json()
         ownerEmail = emailResult.email || ''
       } catch {}
@@ -108,7 +123,7 @@ export default function SchoolDetailPage() {
     }
     setResettingPwd(true)
     try {
-      const res = await fetch('/api/super-admin/reset-owner-password', {
+      const res = await fetch('/dashboard/super-admin/reset-owner-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ownerId: school.owner_id, newPassword: newOwnerPassword }),
@@ -162,7 +177,7 @@ export default function SchoolDetailPage() {
 
     if (ownerForm.email.trim() && ownerForm.email.trim() !== owner.email) {
       try {
-        const res = await fetch('/api/super-admin/update-email', {
+        const res = await fetch('/dashboard/super-admin/update-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: school.owner_id, newEmail: ownerForm.email.trim() }),
@@ -284,14 +299,15 @@ export default function SchoolDetailPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#07050F', fontFamily: 'sans-serif', color: '#fff' }}>
-      <div style={{ background: '#12102A', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/dashboard/super-admin" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none' }}>← Back</a>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 900 }}>{school.name}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Code: {school.code} · {school.city || 'No city'}</div>
-          </div>
+    <DashboardLayout
+      role="super-admin"
+      activePath="/dashboard/super-admin"
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <a href="/dashboard/super-admin" style={{ color: "var(--accent-purple)", fontSize: 13, textDecoration: "none", fontWeight: "600" }}>← Back to Dashboard</a>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginTop: 4 }}>{school.name}</h2>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Code: {school.code} · {school.city || 'No city'}</div>
         </div>
         <span style={{
           padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700,
@@ -302,7 +318,7 @@ export default function SchoolDetailPage() {
         </span>
       </div>
 
-      <div style={{ padding: '20px 24px', maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
           {[
@@ -310,9 +326,9 @@ export default function SchoolDetailPage() {
             { label: 'Teachers', value: stats.teachers, color: '#059669', icon: '👨‍🏫' },
             { label: 'Students', value: stats.students, color: '#D97706', icon: '🎓' },
           ].map((k, i) => (
-            <div key={i} style={{ background: '#12102A', borderRadius: 14, padding: 18, border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div key={i} style={{ background: 'var(--bg-card)', borderRadius: 14, padding: 18, border: '1px solid var(--border-subtle)' }}>
               <div style={{ fontSize: 20, marginBottom: 6 }}>{k.icon}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</div>
               <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
             </div>
           ))}
@@ -320,7 +336,7 @@ export default function SchoolDetailPage() {
 
         {/* School + Owner info */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <div style={{ background: '#12102A', borderRadius: 16, padding: 20, border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 20, border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 14, fontWeight: 800 }}>School Information</div>
               <button
@@ -333,17 +349,17 @@ export default function SchoolDetailPage() {
 
             {editingSchool ? (
               <div>
-                <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>Name</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Name</label>
                 <input value={schoolForm.name} onChange={e => setSchoolForm(p => ({ ...p, name: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
 
-                <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>City</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>City</label>
                 <input value={schoolForm.city} onChange={e => setSchoolForm(p => ({ ...p, city: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
 
-                <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>Plan</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Plan</label>
                 <select value={schoolForm.plan} onChange={e => setSchoolForm(p => ({ ...p, plan: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', background: '#1a1830', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8 }}>
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 8 }}>
                   {Object.entries(PLAN_TIERS).map(([key, tier]) => (
                     <option key={key} value={key}>{tier.label}</option>
                   ))}
@@ -370,8 +386,8 @@ export default function SchoolDetailPage() {
                   { label: 'Price', value: PLAN_TIERS[school.plan] ? `Rs. ${PLAN_TIERS[school.plan].price.toLocaleString()}/mo` : '-' },
                   { label: 'Max Branches', value: school.max_branches },
                 ].map((f, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 5 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{f.label}</span>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 5 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.label}</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{f.value || '-'}</span>
                   </div>
                 ))}
@@ -379,7 +395,7 @@ export default function SchoolDetailPage() {
             )}
           </div>
 
-          <div style={{ background: '#12102A', borderRadius: 16, padding: 20, border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 20, border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 14, fontWeight: 800 }}>School Owner</div>
               {owner && (
@@ -403,17 +419,17 @@ export default function SchoolDetailPage() {
             {owner ? (
               editingOwner ? (
                 <div>
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>Name</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Name</label>
                   <input value={ownerForm.name} onChange={e => setOwnerForm(p => ({ ...p, name: e.target.value }))}
-                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
 
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>Email (login)</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Email (login)</label>
                   <input type="email" value={ownerForm.email} onChange={e => setOwnerForm(p => ({ ...p, email: e.target.value }))}
-                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
 
-                  <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>Phone</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Phone</label>
                   <input value={ownerForm.phone} onChange={e => setOwnerForm(p => ({ ...p, phone: e.target.value }))}
-                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 14, boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 14, boxSizing: 'border-box' }} />
 
                   <button
                     onClick={saveOwnerEdit}
@@ -425,20 +441,20 @@ export default function SchoolDetailPage() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Name</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Name</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{owner.name}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Email</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Email</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{owner.email || '-'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Login ID</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Login ID</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{owner.auto_id}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: showResetPwd ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Phone</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: showResetPwd ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Phone</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{owner.phone || '-'}</span>
                   </div>
 
@@ -449,7 +465,7 @@ export default function SchoolDetailPage() {
                         placeholder="Naya password (min 6 characters)"
                         value={newOwnerPassword}
                         onChange={e => setNewOwnerPassword(e.target.value)}
-                        style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, boxSizing: 'border-box', marginBottom: 10 }}
+                        style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, color: 'var(--text-primary)', fontSize: 13, boxSizing: 'border-box', marginBottom: 10 }}
                       />
                       {resetMsg && (
                         <div style={{ fontSize: 12, color: resetMsg.includes('Error') ? '#F87171' : '#34D399', marginBottom: 10 }}>{resetMsg}</div>
@@ -467,7 +483,9 @@ export default function SchoolDetailPage() {
               )
             ) : (
               <div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>Koi owner assigned nahi.</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Assign an owner to manage this school's administrative functions.
+                </div>
                 {!showCreateOwner ? (
                   <button
                     onClick={() => setShowCreateOwner(true)}
@@ -478,18 +496,18 @@ export default function SchoolDetailPage() {
                 ) : (
                   <div>
                     <input placeholder="Full Name *" value={newOwnerForm.name} onChange={e => setNewOwnerForm(p => ({ ...p, name: e.target.value }))}
-                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
                     <input placeholder="Email *" type="email" value={newOwnerForm.email} onChange={e => setNewOwnerForm(p => ({ ...p, email: e.target.value }))}
-                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
                     <input placeholder="Password (min 6 chars) *" type="text" value={newOwnerForm.password} onChange={e => setNewOwnerForm(p => ({ ...p, password: e.target.value }))}
-                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
                     <input placeholder="Phone" value={newOwnerForm.phone} onChange={e => setNewOwnerForm(p => ({ ...p, phone: e.target.value }))}
-                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
                     {createOwnerMsg && (
                       <div style={{ fontSize: 12, color: createOwnerMsg.includes('Error') ? '#F87171' : '#34D399', marginBottom: 10 }}>{createOwnerMsg}</div>
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setShowCreateOwner(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={() => setShowCreateOwner(false)} style={{ flex: 1, padding: 10, background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 10, color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
                       <button
                         onClick={handleCreateOwner}
                         disabled={creatingOwner}
@@ -515,7 +533,7 @@ export default function SchoolDetailPage() {
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
               {school.active ? 'Suspend this school' : 'Reactivate this school'}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {school.active ? 'Sab logins is school ke disable ho jayenge.' : 'School dobara active ho jayega, sab logins kaam karenge.'}
             </div>
           </div>
@@ -531,11 +549,36 @@ export default function SchoolDetailPage() {
           </button>
         </div>
 
+        {/* Danger Zone: Delist School */}
+        <div style={{
+          background: 'rgba(220,38,38,0.03)',
+          border: '1px solid rgba(220,38,38,0.15)',
+          borderRadius: 16, padding: 18, marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#F87171', marginBottom: 2 }}>
+              🔴 Danger Zone: De-list School
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              School aur uske saare branches/records ko permanently system se remove karne ke liye verification request send karen.
+            </div>
+          </div>
+          <button
+            onClick={requestSchoolDelist}
+            style={{
+              padding: '10px 20px', borderRadius: 10, border: '1px solid #DC2626', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              background: 'transparent', color: '#DC2626',
+            }}
+          >
+            🗑️ De-list School
+          </button>
+        </div>
+
         {/* Branches */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800 }}>Branches ({branches.length} / {school.max_branches})</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {PLAN_TIERS[school.plan]?.label || school.plan} plan
             </div>
           </div>
@@ -548,7 +591,7 @@ export default function SchoolDetailPage() {
               }
               setShowAddBranch(!showAddBranch)
             }}
-            style={{ padding: '8px 16px', background: branches.length >= school.max_branches ? 'rgba(255,255,255,0.07)' : '#7C3AED', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            style={{ padding: '8px 16px', background: branches.length >= school.max_branches ? 'rgba(255,255,255,0.05)' : 'var(--accent-purple)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             {showAddBranch ? '✕ Cancel' : '➕ Add Branch'}
           </button>
@@ -561,16 +604,16 @@ export default function SchoolDetailPage() {
         )}
 
         {showAddBranch && (
-          <div style={{ background: '#12102A', borderRadius: 16, padding: 20, border: '1px solid rgba(124,58,237,0.25)', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 20, border: '1px solid var(--border-subtle)', marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <input placeholder="Branch Name *" value={branchName} onChange={e => setBranchName(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontSize: 13 }} />
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13 }} />
               <input placeholder="Branch Code * (e.g. B2)" value={branchCode} onChange={e => setBranchCode(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontSize: 13 }} />
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13 }} />
               <input placeholder="City" value={branchCity} onChange={e => setBranchCity(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontSize: 13 }} />
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13 }} />
               <input placeholder="Address" value={branchAddress} onChange={e => setBranchAddress(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontSize: 13 }} />
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13 }} />
             </div>
             {branchMsg && (
               <div style={{
@@ -584,7 +627,7 @@ export default function SchoolDetailPage() {
             <button
               onClick={handleAddBranch}
               disabled={savingBranch || branches.length >= school.max_branches}
-              style={{ padding: '10px 20px', background: '#7C3AED', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: (savingBranch || branches.length >= school.max_branches) ? 0.5 : 1 }}
+              style={{ padding: '10px 20px', background: 'var(--accent-purple)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: (savingBranch || branches.length >= school.max_branches) ? 0.5 : 1 }}
             >
               {savingBranch ? 'Saving...' : 'Add Branch'}
             </button>
@@ -592,17 +635,17 @@ export default function SchoolDetailPage() {
         )}
 
         {branches.length === 0 ? (
-          <div style={{ background: '#12102A', borderRadius: 16, padding: 40, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 40, textAlign: 'center', border: '1px solid var(--border-subtle)' }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🏢</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Koi branch nahi hai abhi.</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Koi branch nahi hai abhi.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {branches.map(b => (
-              <div key={b.id} style={{ background: '#12102A', borderRadius: 14, padding: 16, border: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div key={b.id} style={{ background: 'var(--bg-card)', borderRadius: 14, padding: 16, border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>🏢 {b.name}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                     Code: {b.code} {b.city ? `· ${b.city}` : ''}
                   </div>
                 </div>
@@ -618,6 +661,45 @@ export default function SchoolDetailPage() {
           </div>
         )}
       </div>
-    </div>
+
+      {/* Delist Verification Link Modal (Email Simulation) */}
+      {showDelistModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 440 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 24 }}>📬</span>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: 16, fontWeight: 800 }}>
+                Verification Link Generated!
+              </h3>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
+              Humne platform security ke liye **`admin@educore.pk`** par verification email send ki hai. 
+            </p>
+            
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 14, marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                Simulated Email Content:
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                Hi Admin,<br />
+                A request has been made to de-list **{school.name}** ({school.code}). Please click the link below to verify and complete this action:
+                <div style={{ marginTop: 10, wordBreak: 'break-all' }}>
+                  <a href={generatedDelistLink} style={{ color: 'var(--accent-purple)', fontWeight: 700, textDecoration: 'underline' }}>
+                    Verify & De-list School
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowDelistModal(false)}
+              style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   )
 }

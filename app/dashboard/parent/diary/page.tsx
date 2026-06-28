@@ -1,6 +1,8 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -8,23 +10,16 @@ const supabase = createClient(
 );
 
 const TYPE_META: Record<string, { label: string; bg: string; color: string }> = {
-  homework: { label: "Homework", bg: "rgba(168,85,247,0.15)", color: "#c084fc" },
-  classwork: { label: "Classwork", bg: "rgba(59,130,246,0.15)", color: "#60a5fa" },
-  notice: { label: "Notice", bg: "rgba(245,158,11,0.15)", color: "#fbbf24" },
+  homework: { label: "Homework", bg: "rgba(168,85,247,0.1)", color: "var(--accent-purple)" },
+  classwork: { label: "Classwork", bg: "rgba(59,130,246,0.1)", color: "var(--accent-cyan)" },
+  notice: { label: "Notice", bg: "rgba(245,158,11,0.1)", color: "var(--accent-amber)" },
 };
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
-  pending: { label: "Not Submitted", bg: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" },
-  submitted: { label: "Submitted — Pending Review", bg: "rgba(59,130,246,0.15)", color: "#60a5fa" },
-  approved: { label: "Approved", bg: "rgba(34,197,94,0.15)", color: "#4ade80" },
-  rejected: { label: "Rejected", bg: "rgba(239,68,68,0.15)", color: "#f87171" },
-};
-
-const card: React.CSSProperties = {
-  background: "#12102A",
-  borderRadius: 16,
-  padding: 20,
-  border: "1px solid rgba(255,255,255,0.07)",
+  pending: { label: "Not Submitted", bg: "var(--bg-elevated)", color: "var(--text-muted)" },
+  submitted: { label: "Submitted — Review Pending", bg: "rgba(59,130,246,0.1)", color: "var(--accent-cyan)" },
+  approved: { label: "Approved", bg: "rgba(16,185,129,0.1)", color: "var(--accent-emerald)" },
+  rejected: { label: "Rejected", bg: "rgba(244,63,94,0.1)", color: "var(--accent-rose)" },
 };
 
 export default function ParentDiaryPage() {
@@ -96,131 +91,120 @@ export default function ParentDiaryPage() {
   const filteredEntries = entries.filter((e) => filter === "all" || e.type === filter);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#07050F", fontFamily: "sans-serif", color: "#fff" }}>
-      <div style={{ background: "#12102A", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/dashboard/parent" style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textDecoration: "none" }}>← Back</a>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 900 }}>📔 Diary / Homework</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-              {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : "Loading..."}
-            </div>
-          </div>
+    <DashboardLayout
+      role="parent"
+      activePath="/dashboard/parent/diary"
+      onRefresh={fetchDiaryData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📔 Child Diary / Homework</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            {currentChild ? `${currentChild.name} · Grade ${currentChild.grade}-${currentChild.section}` : "Loading..."}
+          </p>
         </div>
         {children.length > 1 && (
           <select
             value={selectedChild}
             onChange={(e) => setSelectedChild(e.target.value)}
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 10px", color: "#fff", fontSize: 13 }}
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
           >
             {children.map((c) => (
-              <option key={c.id} value={c.id} style={{ background: "#12102A" }}>{c.name}</option>
+              <option key={c.id} value={c.id} style={{ color: 'var(--text-primary)' }}>{c.name}</option>
             ))}
           </select>
         )}
       </div>
 
-      <div style={{ padding: "20px 24px", maxWidth: 760, margin: "0 auto" }}>
-        {/* Filter tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          {[
-            { value: "all", label: "All" },
-            { value: "homework", label: "📔 Homework" },
-            { value: "classwork", label: "✏️ Classwork" },
-            { value: "notice", label: "📌 Notice" },
-          ].map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value as any)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 99,
-                fontSize: 12,
-                fontWeight: 600,
-                border: "1px solid",
-                cursor: "pointer",
-                background: filter === f.value ? "#7c3aed" : "rgba(255,255,255,0.05)",
-                borderColor: filter === f.value ? "#7c3aed" : "rgba(255,255,255,0.1)",
-                color: filter === f.value ? "#fff" : "rgba(255,255,255,0.6)",
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { value: "all", label: "All Logs" },
+          { value: "homework", label: "📔 Homework" },
+          { value: "classwork", label: "✏️ Classwork" },
+          { value: "notice", label: "📌 Notice Board" },
+        ].map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setFilter(f.value as any)}
+            style={{
+              padding: '8px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, transition: 'all 0.2s',
+              background: filter === f.value ? 'var(--accent-purple)' : 'var(--bg-card)',
+              color: filter === f.value ? '#fff' : 'var(--text-secondary)',
+              boxShadow: 'var(--shadow-card)'
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
-        {loading ? (
-          <div style={{ ...card, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>Loading...</div>
-        ) : !guardian ? (
-          <div style={{ ...card, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
-            Guardian profile not found. Contact admin.
-          </div>
-        ) : children.length === 0 ? (
-          <div style={{ ...card, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>
-            Koi student aapke account se linked nahi hai. Contact admin.
-          </div>
-        ) : filteredEntries.length === 0 ? (
-          <div style={{ ...card, textAlign: "center", padding: 50 }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Abhi tak koi entry nahi hai</div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {filteredEntries.map((entry) => {
-              const typeMeta = TYPE_META[entry.type] || TYPE_META.notice;
-              const submission = submissions[entry.id];
-              const status = submission?.status || "pending";
-              const statusMeta = STATUS_META[status];
+      {loading ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Loading entries...</div>
+      ) : !guardian ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Guardian profile not found.</div>
+      ) : children.length === 0 ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No student profiles linked to this parent account.</div>
+      ) : filteredEntries.length === 0 ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No diary entries logged.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {filteredEntries.map((entry) => {
+            const typeMeta = TYPE_META[entry.type] || TYPE_META.notice;
+            const submission = submissions[entry.id];
+            const status = submission?.status || "pending";
+            const statusMeta = STATUS_META[status];
 
-              return (
-                <div key={entry.id} style={card}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 99, background: typeMeta.bg, color: typeMeta.color }}>
-                      {typeMeta.label}
-                    </span>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{entry.subject} · {entry.date}</span>
-                  </div>
+            return (
+              <div key={entry.id} className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 10px", borderRadius: 99, background: typeMeta.bg, color: typeMeta.color }}>
+                    {typeMeta.label}
+                  </span>
+                  <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{entry.subject} · {entry.date}</span>
+                </div>
 
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{entry.title}</div>
-                  {entry.body && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{entry.body}</div>}
+                <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{entry.title}</h4>
+                {entry.body && <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 6 }}>{entry.body}</p>}
 
-                  {entry.attachment_url && (
-                    <a href={entry.attachment_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#60a5fa", display: "inline-block", marginTop: 6 }}>
-                      📎 Teacher's attachment
-                    </a>
-                  )}
+                {entry.attachment_url && (
+                  <a href={entry.attachment_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 600, marginTop: 8 }}>
+                    📎 View Teacher's attachment file
+                  </a>
+                )}
 
-                  {entry.type === "homework" && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: statusMeta.bg, color: statusMeta.color }}>
+                {entry.type === "homework" && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border-subtle)", display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: statusMeta.bg, color: statusMeta.color }}>
                         {statusMeta.label}
                       </span>
-
-                      {submission?.submission_file_url && (
-                        <div style={{ marginTop: 8 }}>
-                          <a href={submission.submission_file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#60a5fa" }}>
-                            📎 Bachay ki submitted file dekhen
-                          </a>
-                        </div>
-                      )}
-
-                      {submission?.submission_note && (
-                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>Note: "{submission.submission_note}"</div>
-                      )}
-
-                      {(status === "approved" || status === "rejected") && submission?.teacher_remarks && (
-                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6, fontStyle: "italic" }}>
-                          Teacher remark: "{submission.teacher_remarks}"
-                        </div>
-                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+
+                    {submission?.submission_file_url && (
+                      <div style={{ marginTop: 4 }}>
+                        <a href={submission.submission_file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 650 }}>
+                          📎 View child's submitted work file
+                        </a>
+                      </div>
+                    )}
+
+                    {submission?.submission_note && (
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>Student Comments: "{submission.submission_note}"</div>
+                    )}
+
+                    {(status === "approved" || status === "rejected") && submission?.teacher_remarks && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, fontStyle: "italic" }}>
+                        Teacher Remarks: "{submission.teacher_remarks}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

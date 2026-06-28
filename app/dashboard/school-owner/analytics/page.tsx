@@ -1,8 +1,10 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { ArrowLeft } from 'lucide-react'
+import { Wallet, Hourglass, ClipboardList } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import DashboardLayout from '../../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
@@ -83,12 +85,6 @@ export default function SchoolOwnerAnalyticsPage() {
     setLoading(false)
   }
 
-  const card: React.CSSProperties = {
-    background: '#12102A',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 14,
-  }
-
   const totalCollected = feeTrend.reduce((s, m) => s + m.collected, 0)
   const totalPending = feeTrend.reduce((s, m) => s + m.pending, 0)
   const avgAttendance = branchAttendance.length
@@ -96,76 +92,91 @@ export default function SchoolOwnerAnalyticsPage() {
     : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#07050F', fontFamily: 'sans-serif', color: '#fff' }}>
-      <div style={{ background: '#12102A', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <a href="/dashboard/school-owner" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <ArrowLeft size={14} /> Back
-        </a>
+    <DashboardLayout
+      role="school-owner"
+      activePath="/dashboard/school-owner/analytics"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>📊 Reports & Analytics</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>School-wide trends and insights</div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📊 Reports & Analytics</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>System-wide reports, collections trends and monthly logs.</p>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
-        {loading ? (
-          <div style={{ padding: 60, textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>Loading analytics...</div>
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 24 }}>
-              {[
-                { label: '6-Month Fee Collected', value: 'Rs ' + totalCollected.toLocaleString(), color: '#4ADE80' },
-                { label: '6-Month Fee Pending', value: 'Rs ' + totalPending.toLocaleString(), color: '#FBBF24' },
-                { label: 'Avg Attendance (30 days)', value: avgAttendance + '%', color: avgAttendance >= 75 ? '#34D399' : '#F87171' },
-              ].map(s => (
-                <div key={s.label} style={{ ...card, padding: '18px 20px', borderTop: `3px solid ${s.color}`, boxShadow: `0 0 16px -4px ${s.color}66` }}>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>{s.label}</div>
-                  <div style={{ fontSize: 24, fontWeight: 700 }}>{s.value}</div>
+      {loading ? (
+        <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>Loading analytics charts...</div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+            {[
+              { label: '6-Month Fee Collected', value: 'Rs ' + totalCollected.toLocaleString(), color: 'var(--accent-emerald)', icon: Wallet, name: 'emerald' },
+              { label: '6-Month Fee Pending', value: 'Rs ' + totalPending.toLocaleString(), color: 'var(--accent-rose)', icon: Hourglass, name: 'amber' },
+              { label: 'Avg Attendance (30 days)', value: avgAttendance + '%', color: avgAttendance >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)', icon: ClipboardList, name: avgAttendance >= 75 ? 'emerald' : 'amber' },
+            ].map(s => {
+              const Icon = s.icon
+              return (
+                <div key={s.label} className={`kpi-card ${s.name}`} style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 14,
+                  padding: '18px 20px',
+                  borderTop: `3px solid ${s.color}`,
+                  minHeight: 108, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3, fontWeight: "600", textTransform: "uppercase" }}>{s.label}</div>
+                    <Icon size={18} style={{ color: s.color, flexShrink: 0 }} />
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 8 }}>{s.value}</div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
+          </div>
 
-            <div style={{ ...card, padding: 20, marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>Fee Collection Trend (Last 6 Months)</div>
-              {feeTrend.every(m => m.collected === 0 && m.pending === 0) ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Koi fee record nahi mila.</div>
-              ) : (
-                <div style={{ width: '100%', height: 260 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={feeTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="month" stroke="rgba(255,255,255,0.4)" fontSize={11} />
-                      <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} />
-                      <Tooltip contentStyle={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
-                      <Line type="monotone" dataKey="collected" name="Collected" stroke="#4ADE80" strokeWidth={2} dot={{ r: 3 }} />
-                      <Line type="monotone" dataKey="pending" name="Pending" stroke="#FBBF24" strokeWidth={2} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
+          {/* Line Chart */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: 'var(--text-primary)' }}>Fee Collection Trend (Last 6 Months)</div>
+            {feeTrend.every(m => m.collected === 0 && m.pending === 0) ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No fee data logs.</div>
+            ) : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={feeTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                    <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={11} />
+                    <YAxis stroke="var(--text-muted)" fontSize={11} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 12, color: 'var(--text-primary)' }} />
+                    <Line type="monotone" dataKey="collected" name="Collected" stroke="var(--accent-emerald)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="pending" name="Pending" stroke="var(--accent-rose)" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
 
-            <div style={{ ...card, padding: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>Branch-wise Attendance (Last 30 Days)</div>
-              {branchAttendance.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Koi attendance record nahi mila.</div>
-              ) : (
-                <div style={{ width: '100%', height: 260 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={branchAttendance}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={11} />
-                      <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} domain={[0, 100]} unit="%" />
-                      <Tooltip contentStyle={{ background: '#12102A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="pct" name="Attendance %" fill="#8B7CF6" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          {/* Bar Chart */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: 'var(--text-primary)' }}>Branch-wise Attendance (Last 30 Days)</div>
+            {branchAttendance.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No attendance records found.</div>
+            ) : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={branchAttendance}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                    <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
+                    <YAxis stroke="var(--text-muted)" fontSize={11} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 12, color: 'var(--text-primary)' }} />
+                    <Bar dataKey="pct" name="Attendance Ratio %" fill="var(--accent-purple)" radius={[4, 4, 0, 0]} barSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </DashboardLayout>
   )
 }

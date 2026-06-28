@@ -1,17 +1,13 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tbmZ1cmlzZm1wcWd6ZHd5bnZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NTcwMjIsImV4cCI6MjA5MzIzMzAyMn0.JIfnsxAG0pqkFED5zWmzd_ZwprnO31t14Vt1FjdmeWM"
 );
-
-const STATUS_COLOR: Record<string, string> = {
-  present: "bg-green-100 text-green-700",
-  absent: "bg-red-100 text-red-700",
-  late: "bg-yellow-100 text-yellow-700",
-};
 
 export default function StudentAttendancePage() {
   const [records, setRecords] = useState<any[]>([]);
@@ -59,111 +55,109 @@ export default function StudentAttendancePage() {
   const pct = total ? Math.round((present / total) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-3xl mx-auto">
-        <a href="/dashboard/student" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mb-3 font-medium">
-          <span aria-hidden="true">←</span> Back to Dashboard
-        </a>
-
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900">My Attendance</h1>
-          <p className="text-gray-500 text-sm mt-1">
+    <DashboardLayout
+      role="student"
+      activePath="/dashboard/student/attendance"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📊 My Attendance</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
             {student ? `${student.name} · Grade ${student.grade} - Section ${student.section}` : "Loading..."}
           </p>
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-3">
-          <label className="text-sm text-gray-500 font-medium">Month:</label>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <label style={{ fontSize: 13, color: 'var(--text-muted)' }}>Month:</label>
           <input
             type="month"
             value={month}
             max={new Date().toISOString().slice(0, 7)}
             onChange={e => setMonth(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}
           />
         </div>
+      </div>
 
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          <div className={`rounded-xl border p-3 text-center ${pct >= 75 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-            <div className={`text-2xl font-bold ${pct >= 75 ? "text-green-700" : "text-red-700"}`}>{pct}%</div>
-            <div className="text-xs text-gray-500">Attendance</div>
-          </div>
-          <div className="rounded-xl border bg-green-50 border-green-200 p-3 text-center">
-            <div className="text-2xl font-bold text-green-700">{present}</div>
-            <div className="text-xs text-gray-500">Present</div>
-          </div>
-          <div className="rounded-xl border bg-red-50 border-red-200 p-3 text-center">
-            <div className="text-2xl font-bold text-red-700">{absent}</div>
-            <div className="text-xs text-gray-500">Absent</div>
-          </div>
-          <div className="rounded-xl border bg-yellow-50 border-yellow-200 p-3 text-center">
-            <div className="text-2xl font-bold text-yellow-700">{late}</div>
-            <div className="text-xs text-gray-500">Late</div>
-          </div>
+      {/* KPI stats */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, textAlign: 'center' }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: pct >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{pct}%</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Attendance Ratio</div>
         </div>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, textAlign: 'center' }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-emerald)' }}>{present}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Present Logs</div>
+        </div>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, textAlign: 'center' }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-rose)' }}>{absent}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Absent Logs</div>
+        </div>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: 18, textAlign: 'center' }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-amber)' }}>{late}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>Late Logs</div>
+        </div>
+      </div>
 
-        {total > 0 && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600 font-medium">Attendance Progress</span>
-              <span className={`font-bold ${pct >= 75 ? "text-green-600" : "text-red-600"}`}>{pct}%</span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${pct >= 75 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500"}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            {pct < 75 && (
-              <p className="text-xs text-red-500 mt-2">Warning: Attendance below 75%. Need {75 - pct}% more.</p>
-            )}
+      {total > 0 && (
+        <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Attendance Progress bar</span>
+            <span style={{ fontWeight: 800, color: pct >= 75 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{pct}%</span>
           </div>
-        )}
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, overflow: 'hidden', height: 8 }}>
+            <div style={{ width: `${pct}%`, height: '100%', borderRadius: 10, background: pct >= 75 ? 'var(--accent-emerald)' : pct >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)' }} />
+          </div>
+          {pct < 75 && (
+            <p style={{ fontSize: 12, color: 'var(--accent-rose)', marginTop: 8, fontWeight: 600 }}>⚠️ Alert: Your attendance ratio is below the 75% system requirement threshold.</p>
+          )}
+        </div>
+      )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-gray-400">Loading...</div>
-          ) : !student ? (
-            <div className="p-8 text-center text-gray-400">Student profile not found. Contact admin.</div>
-          ) : records.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">No records found for this month.</div>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-100">
+      {/* Table grid */}
+      <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading logs...</div>
+        ) : !student ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Student profile not found.</div>
+        ) : records.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No logs recorded for this month.</div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wide">Date</th>
-                  <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wide">Day</th>
-                  <th className="px-4 py-3 text-center text-xs text-gray-500 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase tracking-wide hidden md:table-cell">Remarks</th>
+                  <th>Date</th>
+                  <th>Day</th>
+                  <th style={{ textAlign: 'center' }}>Status</th>
+                  <th>Remarks</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody>
                 {records.map((r, i) => {
                   const d = new Date(r.date);
                   return (
-                    <tr key={i} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <tr key={i}>
+                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                         {d.toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {d.toLocaleDateString("en-PK", { weekday: "short" })}
+                      <td style={{ color: 'var(--text-secondary)' }}>
+                        {d.toLocaleDateString("en-PK", { weekday: "long" })}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-xs px-3 py-1 rounded-full font-medium capitalize ${STATUS_COLOR[r.status] || ""}`}>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`status-badge ${r.status === "present" ? "active" : r.status === "absent" ? "inactive" : "pending"}`}>
                           {r.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell">
-                        {r.remarks || "-"}
-                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{r.remarks || "—"}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

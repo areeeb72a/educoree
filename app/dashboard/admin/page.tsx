@@ -1,12 +1,16 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { Users, CheckCircle2, Plane, ClipboardList, UserPlus, FileEdit, Megaphone, Wallet, BarChart3, ChevronRight, Search, GraduationCap, Crown, Phone, MoreVertical } from 'lucide-react'
+import { Users, CheckCircle2, ClipboardList, UserPlus, FileEdit, Megaphone, Wallet, BarChart3, ChevronRight, Search, GraduationCap, Crown, MoreVertical } from 'lucide-react'
+import DashboardLayout from '../DashboardLayout'
 
 const supabase = createClient(
   'https://nmnfurisfmpqgzdwynvj.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tbmZ1cmlzZm1wcWd6ZHd5bnZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NTcwMjIsImV4cCI6MjA5MzIzMzAyMn0.JIfnsxAG0pqkFED5zWmzd_ZwprnO31t14Vt1FjdmeWM'
 )
+
+const CHRONIC_THRESHOLD = 75 // %
 
 export default function AdminDashboard() {
   const [profile, setProfile] = useState<any>(null)
@@ -28,12 +32,66 @@ export default function AdminDashboard() {
   const [formError, setFormError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
   const [formSuccess, setFormSuccess] = useState('')
-
   const ROLE_OPTIONS = ['teacher', 'admin', 'accounts', 'principal', 'school_owner']
+
+  // reset password tab state
+  const [resetUsers, setResetUsers] = useState<any[]>([])
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSearch, setResetSearch] = useState('')
+  const [selectedResetUser, setSelectedResetUser] = useState<any>(null)
+  const [newResetPassword, setNewResetPassword] = useState('')
+  const [resetSuccess, setResetSuccess] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [resettingUser, setResettingUser] = useState(false)
 
   useEffect(() => { fetchData() }, [])
   useEffect(() => { if (activeTab === 'staff' && !staffLoaded) fetchStaff() }, [activeTab])
+  useEffect(() => { if (activeTab === 'reset-password') fetchResetUsers() }, [activeTab, profile])
 
+  async function fetchResetUsers() {
+    if (!profile?.school_id) return
+    setResetLoading(true)
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, role, phone, auto_id, active')
+      .eq('school_id', profile.school_id)
+      .in('role', ['accounts', 'teacher', 'student', 'parent'])
+      .order('name')
+    if (!error) {
+      setResetUsers(data || [])
+    }
+    setResetLoading(false)
+  }
+
+  async function handleResetPassword() {
+    setResetError('')
+    setResetSuccess('')
+    if (!selectedResetUser) return
+    if (!newResetPassword || newResetPassword.length < 6) {
+      setResetError('Error: Password kam az kam 6 characters ka ho')
+      return
+    }
+    setResettingUser(true)
+    try {
+      const res = await fetch('/dashboard/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedResetUser.id, newPassword: newResetPassword }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setResetError('Error: ' + result.error)
+        setResettingUser(false)
+        return
+      }
+      setResetSuccess(`Password successfully reset ho gaya for ${selectedResetUser.name}!`)
+      setNewResetPassword('')
+      setTimeout(() => { setSelectedResetUser(null); setResetSuccess('') }, 2500)
+    } catch (err: any) {
+      setResetError('Error: ' + err.message)
+    }
+    setResettingUser(false)
+  }
   async function fetchStaff() {
     if (!profile?.school_id) return
     setStaffLoading(true)
@@ -196,10 +254,10 @@ export default function AdminDashboard() {
   }
 
   const STATUS_OPTS = [
-    { value: 'present', label: 'Present', color: 'bg-green-100 text-green-700', activeColor: 'bg-green-600 text-white' },
-    { value: 'absent', label: 'Absent', color: 'bg-red-100 text-red-700', activeColor: 'bg-red-600 text-white' },
-    { value: 'late', label: 'Late', color: 'bg-yellow-100 text-yellow-700', activeColor: 'bg-yellow-600 text-white' },
-    { value: 'leave', label: 'Leave', color: 'bg-blue-100 text-blue-700', activeColor: 'bg-blue-600 text-white' },
+    { value: 'present', label: 'Present', color: 'rgba(16,185,129,0.1)', activeColor: 'var(--accent-emerald)' },
+    { value: 'absent', label: 'Absent', color: 'rgba(244,63,94,0.1)', activeColor: 'var(--accent-rose)' },
+    { value: 'late', label: 'Late', color: 'rgba(245,158,11,0.1)', activeColor: 'var(--accent-amber)' },
+    { value: 'leave', label: 'Leave', color: 'rgba(59,130,246,0.1)', activeColor: 'var(--accent-purple)' },
   ]
 
   const histSummary = {
@@ -256,12 +314,6 @@ export default function AdminDashboard() {
   }
 
   const filteredLeaves = leaveList.filter(l => leaveFilter === 'all' || l.status === leaveFilter)
-
-  const LEAVE_STATUS_META: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-700',
-    approved: 'bg-green-100 text-green-700',
-    rejected: 'bg-red-100 text-red-700',
-  }
 
   // recruitment tab state
   const [jobsList, setJobsList] = useState<any[]>([])
@@ -343,7 +395,6 @@ export default function AdminDashboard() {
   const [applicantsByJob, setApplicantsByJob] = useState<Record<string, any[]>>({})
   const [loadingApplicants, setLoadingApplicants] = useState<string | null>(null)
   const [updatingApplicant, setUpdatingApplicant] = useState<string | null>(null)
-  const [copiedJobId, setCopiedJobId] = useState<string | null>(null)
 
   async function toggleApplicants(jobId: string) {
     if (expandedJob === jobId) { setExpandedJob(null); return }
@@ -370,20 +421,6 @@ export default function AdminDashboard() {
       .eq('id', applicantId)
     await loadApplicants(jobId)
     setUpdatingApplicant(null)
-  }
-
-  function copyApplyLink(jobId: string) {
-    const link = `${window.location.origin}/careers/apply/${jobId}`
-    navigator.clipboard.writeText(link)
-    setCopiedJobId(jobId)
-    setTimeout(() => setCopiedJobId(null), 2000)
-  }
-
-  const APPLICANT_STATUS_META: Record<string, string> = {
-    applied: 'bg-blue-100 text-blue-700',
-    shortlisted: 'bg-purple-100 text-purple-700',
-    hired: 'bg-green-100 text-green-700',
-    rejected: 'bg-red-100 text-red-700',
   }
 
   // payroll tab state
@@ -429,7 +466,7 @@ export default function AdminDashboard() {
 
       const structMap: Record<string, any> = {}
       ;(structures || []).forEach(s => {
-        if (!structMap[s.staff_id]) structMap[s.staff_id] = s // latest first due to ordering
+        if (!structMap[s.staff_id]) structMap[s.staff_id] = s
       })
       setSalaryStructures(structMap)
     }
@@ -540,360 +577,234 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const tabs = ['overview', 'staff', 'attendance', 'leave', 'recruitment', 'payroll']
+  const tabs = ['overview', 'staff', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password']
+  const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#07050F', fontFamily: 'sans-serif', color: '#fff' }}>
-      {/* Header */}
-      <div style={{ background: '#12102A', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 22 }}>👥</span>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 900 }}>{profile?.schools?.name || 'EduCore'}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Admin / HR Dashboard</div>
-          </div>
+    <DashboardLayout
+      role="admin"
+      activePath={activeTab === 'overview' ? '/dashboard/admin' : `/dashboard/admin/${activeTab}`}
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>👥 Admin & HR Command</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Principal command for faculty logs, leave approvals, recruitment posts, and payroll processing.</p>
         </div>
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/' }} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer' }}>Sign Out</button>
       </div>
 
       {/* Tabs */}
-      <div style={{ background: '#12102A', padding: '0 24px', display: 'flex', gap: 4, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20, overflowX: 'auto', gap: 4 }}>
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '12px 18px',
-            background: activeTab === tab ? 'rgba(124,58,237,0.12)' : 'none',
-            border: 'none',
-            borderRadius: activeTab === tab ? '10px 10px 0 0' : 0,
-            color: activeTab === tab ? '#C4B5FD' : 'rgba(255,255,255,0.55)',
-            fontSize: 13,
-            fontWeight: activeTab === tab ? 700 : 500,
-            cursor: 'pointer',
-            position: 'relative',
-            textTransform: 'capitalize',
-            whiteSpace: 'nowrap',
-            transition: 'background 0.15s, color 0.15s',
-          }}>
-            {tab}
-            {activeTab === tab && (
-              <span style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, background: '#A78BFA', borderRadius: 2 }} />
-            )}
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '12px 20px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: activeTab === tab ? 700 : 500, fontSize: 13,
+              color: activeTab === tab ? 'var(--accent-purple)' : 'var(--text-secondary)',
+              borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
+              transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
+            }}>
+            {tab === 'reset-password' ? '🔑 Reset Password' : tab}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading HR command...</div>
       ) : (
-        <div style={{ padding: '20px 24px' }}>
+        <>
           {activeTab === 'overview' && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Stats Cards */}
+              <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
                 {[
-                  { label: 'Total Staff', value: stats.totalStaff, color: '#A78BFA', icon: Users },
-                  { label: 'Present Today', value: stats.presentToday, color: '#34D399', icon: CheckCircle2 },
-                  { label: 'On Leave', value: stats.onLeave, color: '#FBBF24', icon: Plane },
-                  { label: 'New Applications', value: stats.newApplications, color: '#60A5FA', icon: ClipboardList },
-                ].map((k, i) => {
-                  const Icon = k.icon
-                  return (
-                    <div key={i} style={{ background: '#12102A', borderRadius: 14, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.07)', borderTop: `3px solid ${k.color}`, boxShadow: `0 0 16px -4px ${k.color}66`, minHeight: 116, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <Icon size={22} style={{ color: k.color }} />
-                      <div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>{k.label}</div>
-                        <div style={{ fontSize: 26, fontWeight: 700, color: k.color, letterSpacing: '-0.02em' }}>{k.value}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+                  { label: 'Total Faculty', value: stats.totalStaff, color: 'var(--accent-purple)' },
+                  { label: 'Faculty Present Today', value: stats.presentToday, color: 'var(--accent-emerald)' },
+                  { label: 'On Leave', value: stats.onLeave, color: 'var(--accent-amber)' },
+                  { label: 'New Job Applications', value: stats.newApplications, color: 'var(--accent-cyan)' },
+                ].map((s, idx) => (
+                  <div key={idx} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 14, padding: '16px 20px' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 4 }}>{s.label}</div>
+                  </div>
+                ))}
               </div>
 
-              {/* Quick Actions */}
-              <div style={{ background: '#12102A', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.07)', marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>Quick Actions</div>
+              {/* Actions Grid */}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--text-primary)', fontWeight: 700 }}>Quick Actions Portal</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    { label: 'Add Staff', icon: UserPlus, color: '#A78BFA', tab: 'staff' },
-                    { label: 'Mark Attendance', icon: FileEdit, color: '#34D399', tab: 'attendance' },
-                    { label: 'Approve Leave', icon: CheckCircle2, color: '#FBBF24', tab: 'leave' },
-                    { label: 'Post Job', icon: Megaphone, color: '#F472B6', tab: 'recruitment' },
-                    { label: 'Process Payroll', icon: Wallet, color: '#4ADE80', tab: 'payroll' },
-                    { label: 'View Reports', icon: BarChart3, color: '#60A5FA', tab: 'overview' },
-                  ].map((action, i) => {
-                    const Icon = action.icon
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => setActiveTab(action.tab)}
-                        style={{
-                          padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 12, color: '#fff', cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                          transition: 'transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.transform = 'translateY(-3px)'
-                          e.currentTarget.style.border = `1px solid ${action.color}99`
-                          e.currentTarget.style.boxShadow = `0 8px 20px -8px ${action.color}55`
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.transform = 'translateY(0)'
-                          e.currentTarget.style.border = '1px solid rgba(255,255,255,0.08)'
-                          e.currentTarget.style.boxShadow = 'none'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: 9, background: `${action.color}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon size={17} style={{ color: action.color }} />
-                          </div>
-                          <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.25)' }} />
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{action.label}</div>
-                      </button>
-                    )
-                  })}
+                    { label: 'Add Faculty Member', color: 'var(--accent-purple)', tab: 'staff' },
+                    { label: 'Staff Attendance', color: 'var(--accent-emerald)', tab: 'attendance' },
+                    { label: 'Review Leave requests', color: 'var(--accent-amber)', tab: 'leave' },
+                    { label: 'Manage Recruitment', color: 'var(--accent-cyan)', tab: 'recruitment' },
+                    { label: 'Process Payroll structured', color: 'var(--accent-purple)', tab: 'payroll' },
+                  ].map((action, i) => (
+                    <button key={i} onClick={() => setActiveTab(action.tab)}
+                      style={{
+                        padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+                        borderRadius: 12, color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', flexDirection: 'column', gap: 6, transition: 'all 0.18s ease',
+                      }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NAVIGATE TO</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>{action.label}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === 'staff' && (
-            <div style={{ margin: '-20px -24px', minHeight: 'calc(100vh - 113px)', background: '#0b0a14' }}>
-              {/* Header (transparent, matches body background) */}
-              <div className="px-6 pt-6 pb-8 mb-6">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">
-                  <Users size={20} style={{ color: '#A78BFA' }} /> Staff
-                </h2>
-                <div className="grid grid-cols-2 gap-3 max-w-md">
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4">
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(167,139,250,0.15)' }} className="flex items-center justify-center mb-2">
-                      <Users size={15} style={{ color: '#A78BFA' }} />
-                    </div>
-                    <div className="text-2xl font-extrabold text-white">{staffList.length}</div>
-                    <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Total Staff</div>
-                  </div>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4">
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(96,165,250,0.15)' }} className="flex items-center justify-center mb-2">
-                      <Search size={15} style={{ color: '#60A5FA' }} />
-                    </div>
-                    <div className="text-2xl font-extrabold text-white">{filteredStaff.length}</div>
-                    <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Showing</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-6 pb-12">
-              <div className="flex justify-end items-center mb-4 flex-wrap gap-3">
-                <div className="flex gap-2 flex-wrap">
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Active Faculty staff roster</span>
+                <div style={{ display: 'flex', gap: 10 }}>
                   <input
                     type="text"
-                    placeholder="Search by name or ID..."
+                    placeholder="🔍 Search name or ID..."
                     value={staffSearch}
                     onChange={e => setStaffSearch(e.target.value)}
-                    style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                    className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] min-w-[200px] placeholder-gray-500"
+                    style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
                   />
-                  <button
-                    onClick={() => { setShowAddForm(!showAddForm); resetForm(); setFormSuccess('') }}
-                    style={{ background: '#4f46e5' }}
-                    className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5"
-                  >
-                    {showAddForm ? '✕ Cancel' : <><UserPlus size={14} /> Add Staff</>}
+                  <button onClick={() => { setShowAddForm(!showAddForm); resetForm(); setFormSuccess('') }}
+                    style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                    {showAddForm ? '✕ Cancel' : '+ Add Staff'}
                   </button>
                 </div>
               </div>
 
               {showAddForm && (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-5 mb-5">
-                  <h3 className="text-sm font-bold text-white mb-4">New Staff Member</h3>
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Add Staff Profile</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <input placeholder="Full Name *" type="text" value={formData.name} onChange={e => updateForm('name', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <select value={formData.role} onChange={e => updateForm('role', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                      {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                    {[
-                      { key: 'name', placeholder: 'Full Name *', type: 'text' },
-                      null, // role select handled separately
-                      { key: 'email', placeholder: 'Email *', type: 'email' },
-                      { key: 'password', placeholder: 'Password (min 6 chars) *', type: 'password' },
-                      { key: 'phone', placeholder: 'Phone', type: 'text' },
-                      { key: 'father_name', placeholder: "Father's Name", type: 'text' },
-                      { key: 'blood_group', placeholder: 'Blood Group (e.g. O+)', type: 'text' },
-                      { key: 'joining_date', placeholder: 'Joining Date', type: 'date' },
-                      { key: 'emergency_name', placeholder: 'Emergency Contact Name', type: 'text' },
-                      { key: 'emergency_phone', placeholder: 'Emergency Contact Phone', type: 'text' },
-                    ].map((f, idx) => f ? (
-                      <input key={f.key} placeholder={f.placeholder} type={f.type} value={(formData as any)[f.key]} onChange={e => updateForm(f.key, e.target.value)}
-                        style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                        className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500" />
-                    ) : (
-                      <select key="role" value={formData.role} onChange={e => updateForm('role', e.target.value)}
-                        style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                        className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1]">
-                        {ROLE_OPTIONS.map(r => <option key={r} value={r} style={{ background: '#121124' }}>{r.replace('_', ' ')}</option>)}
-                      </select>
-                    ))}
+                    <input placeholder="Email *" type="email" value={formData.email} onChange={e => updateForm('email', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <input placeholder="Password (min 6 chars) *" type="password" value={formData.password} onChange={e => updateForm('password', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Phone" type="text" value={formData.phone} onChange={e => updateForm('phone', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <input placeholder="Father's Name" type="text" value={formData.father_name} onChange={e => updateForm('father_name', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
                   </div>
-                  <textarea placeholder="Address" value={formData.address} onChange={e => updateForm('address', e.target.value)} rows={2}
-                    style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                    className="w-full rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] resize-none placeholder-gray-500" />
 
-                  {formError && <p className="text-xs mb-2" style={{ color: '#ef4444' }}>{formError}</p>}
-                  {formSuccess && <p className="text-xs mb-2" style={{ color: '#10b981' }}>✅ {formSuccess}</p>}
+                  {formError && <div style={{ fontSize: 12, color: 'var(--accent-rose)', marginBottom: 8 }}>{formError}</div>}
+                  {formSuccess && <div style={{ fontSize: 12, color: 'var(--accent-emerald)', marginBottom: 8 }}>{formSuccess}</div>}
 
-                  <button
-                    onClick={handleAddStaff}
-                    disabled={formSaving}
-                    style={{ background: '#4f46e5' }}
-                    className="text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {formSaving ? 'Creating...' : 'Create Account'}
+                  <button onClick={handleAddStaff} disabled={formSaving}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: formSaving ? 0.6 : 1 }}>
+                    {formSaving ? 'Saving...' : 'Add Member'}
                   </button>
                 </div>
               )}
 
-              {staffLoading ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-8 text-center">Loading...</div>
-              ) : filteredStaff.length === 0 ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-12 text-center">
-                  <Users size={40} style={{ color: '#3a3650', margin: '0 auto 16px' }} />
-                  <p style={{ color: 'rgba(255,255,255,0.4)' }} className="text-sm">Koi staff nahi mila.</p>
-                </div>
-              ) : (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: 640 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #1e1b3a' }}>
-                        {['Name', 'Role', 'Contact', 'Staff ID', ''].map(h => (
-                          <th key={h} className="text-left px-4 py-2.5 text-xs uppercase" style={{ color: '#5b5775' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStaff.map((s, idx) => {
-                        const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
-                        return (
-                          <tr key={s.id} style={{ borderBottom: idx < filteredStaff.length - 1 ? '1px solid #1e1b3a' : 'none' }}>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <div style={{ background: 'rgba(99,102,241,0.15)' }} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <RoleIcon size={14} style={{ color: '#A78BFA' }} />
-                                </div>
-                                <span className="font-bold text-white whitespace-nowrap">{s.name}</span>
-                                {!s.active && (
-                                  <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }} className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">Inactive</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 capitalize whitespace-nowrap" style={{ color: '#94a3b8' }}>{s.role.replace('_', ' ')}</td>
-                            <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#94a3b8' }}>{s.phone || '-'}</td>
-                            <td className="px-4 py-3 font-mono whitespace-nowrap" style={{ color: '#94a3b8' }}>{s.auto_id || '-'}</td>
-                            <td className="px-4 py-3 text-right">
-                              <button style={{ color: '#5b5775' }} className="hover:text-white transition-colors">
-                                <MoreVertical size={16} />
-                              </button>
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                {staffLoading ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading faculty members...</p>
+                ) : filteredStaff.length === 0 ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No faculty matching criteria.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Role</th>
+                          <th>Contact</th>
+                          <th>Faculty ID</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStaff.map(s => (
+                          <tr key={s.id}>
+                            <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                            <td style={{ textTransform: 'capitalize' }}>{s.role}</td>
+                            <td>{s.phone || '—'}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{s.auto_id || '—'}</td>
+                            <td>
+                              <span className={`status-badge ${s.active ? 'active' : 'inactive'}`}>
+                                {s.active ? 'Active' : 'Inactive'}
+                              </span>
                             </td>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {activeTab === 'attendance' && (
-            <div style={{ margin: '-20px -24px', minHeight: 'calc(100vh - 113px)', background: '#0b0a14' }}>
-              <div className="px-6 pt-6 pb-8 mb-6">
-                <div className="flex justify-between items-center flex-wrap gap-3">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <ClipboardList size={20} style={{ color: '#34D399' }} /> Staff Attendance
-                  </h2>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="flex gap-1 rounded-lg p-1">
-                    <button
-                      onClick={() => setAttView('mark')}
-                      style={attView === 'mark' ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
-                    >
-                      Mark Today
-                    </button>
-                    <button
-                      onClick={() => setAttView('history')}
-                      style={attView === 'history' ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
-                    >
-                      History
-                    </button>
-                  </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Staff Attendance log sheet</span>
+                <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 4 }}>
+                  <button onClick={() => setAttView('mark')}
+                    style={{ padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: attView === 'mark' ? 'var(--accent-purple)' : 'transparent', color: '#fff' }}>
+                    Mark Daily
+                  </button>
+                  <button onClick={() => setAttView('history')}
+                    style={{ padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: attView === 'history' ? 'var(--accent-purple)' : 'transparent', color: '#fff' }}>
+                    History log
+                  </button>
                 </div>
               </div>
 
-              <div className="px-6 pb-12">
-
               {attView === 'mark' ? (
-                <>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 mb-4 flex items-center gap-3">
-                    <label className="text-sm font-medium" style={{ color: '#94a3b8' }}>Date:</label>
-                    <input
-                      type="date"
-                      value={attDate}
-                      max={new Date().toISOString().split('T')[0]}
-                      onChange={e => setAttDate(e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] [color-scheme:dark]"
-                    />
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <label style={{ fontSize: 13, color: 'var(--text-muted)' }}>Date Log:</label>
+                    <input type="date" value={attDate} max={new Date().toISOString().split('T')[0]} onChange={e => setAttDate(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }} />
                   </div>
-
                   {attLoading ? (
-                    <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-8 text-center">Loading...</div>
-                  ) : attStaffList.length === 0 ? (
-                    <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-12 text-center">Koi staff nahi mila.</div>
+                    <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading list...</p>
                   ) : (
-                    <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden overflow-x-auto">
-                      <table className="w-full text-sm" style={{ minWidth: 560 }}>
+                    <div className="table-wrap">
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
-                          <tr style={{ borderBottom: '1px solid #1e1b3a' }}>
-                            {['Name', 'Role', 'Status'].map(h => (
-                              <th key={h} className="text-left px-4 py-2.5 text-xs uppercase" style={{ color: '#5b5775' }}>{h}</th>
-                            ))}
+                          <tr>
+                            <th>Staff Member</th>
+                            <th>Role</th>
+                            <th style={{ textAlign: 'center' }}>Mark Attendance</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {attStaffList.map((s, idx) => {
+                          {attStaffList.map(s => {
                             const record = attRecords[s.id]
                             const currentStatus = record?.status
-                            const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
                             return (
-                              <tr key={s.id} style={{ borderBottom: idx < attStaffList.length - 1 ? '1px solid #1e1b3a' : 'none' }}>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <div style={{ background: 'rgba(52,211,153,0.15)' }} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                                      <RoleIcon size={14} style={{ color: '#34D399' }} />
-                                    </div>
-                                    <span className="font-bold text-white whitespace-nowrap">{s.name}</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 capitalize whitespace-nowrap" style={{ color: '#94a3b8' }}>{s.role.replace('_', ' ')}</td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-1.5">
+                              <tr key={s.id}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                                <td style={{ textTransform: 'capitalize' }}>{s.role}</td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                                     {STATUS_OPTS.map(opt => {
                                       const isActive = currentStatus === opt.value
-                                      const statusStyles: Record<string, { bg: string; color: string }> = {
-                                        present: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-                                        absent: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-                                        late: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-                                        leave: { bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
-                                      }
-                                      const st = statusStyles[opt.value] || { bg: 'rgba(255,255,255,0.05)', color: '#94a3b8' }
                                       return (
-                                        <button
-                                          key={opt.value}
-                                          onClick={() => markAttendance(s.id, opt.value)}
-                                          disabled={attSaving === s.id}
-                                          style={isActive ? { background: st.color, color: '#0b0a14' } : { background: st.bg, color: st.color }}
-                                          className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors hover:opacity-80"
-                                        >
+                                        <button key={opt.value} onClick={() => markAttendance(s.id, opt.value)} disabled={attSaving === s.id}
+                                          style={{
+                                            padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                            background: isActive ? opt.activeColor : opt.color,
+                                            color: isActive ? '#fff' : 'var(--text-secondary)'
+                                          }}>
                                           {opt.label}
                                         </button>
-                                      )
+                                      );
                                     })}
                                   </div>
                                 </td>
@@ -904,582 +815,484 @@ export default function AdminDashboard() {
                       </table>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
-                <>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 mb-4 flex items-center gap-3 flex-wrap">
-                    <label className="text-sm font-medium" style={{ color: '#94a3b8' }}>Staff:</label>
-                    <select
-                      value={histStaffId}
-                      onChange={e => setHistStaffId(e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1]"
-                    >
-                      {attStaffList.map(s => <option key={s.id} value={s.id} style={{ background: '#121124' }}>{s.name}</option>)}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <select value={histStaffId} onChange={e => setHistStaffId(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }}>
+                      {attStaffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
-                    <label className="text-sm font-medium ml-2" style={{ color: '#94a3b8' }}>Month:</label>
-                    <input
-                      type="month"
-                      value={histMonth}
-                      max={new Date().toISOString().slice(0, 7)}
-                      onChange={e => setHistMonth(e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] [color-scheme:dark]"
-                    />
+                    <input type="month" value={histMonth} onChange={e => setHistMonth(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }} />
                   </div>
 
-                  <div className="grid grid-cols-4 gap-3 mb-4">
-                    {[
-                      { label: 'Present', value: histSummary.present, bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)', color: '#10b981' },
-                      { label: 'Absent', value: histSummary.absent, bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)', color: '#ef4444' },
-                      { label: 'Late', value: histSummary.late, bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', color: '#f59e0b' },
-                      { label: 'Leave', value: histSummary.leave, bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)', color: '#6366f1' },
-                    ].map(c => (
-                      <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}` }} className="rounded-xl p-3 text-center">
-                        <div className="text-2xl font-bold" style={{ color: c.color }}>{c.value}</div>
-                        <div className="text-xs" style={{ color: '#94a3b8' }}>{c.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden">
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
                     {histLoading ? (
-                      <div className="p-8 text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>Loading...</div>
+                      <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading history...</p>
                     ) : histRecords.length === 0 ? (
-                      <div className="p-8 text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>Is mahine ka koi record nahi mila.</div>
+                      <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No records logged for this month.</p>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid #1e1b3a' }}>
-                            {['Date', 'Day', 'Status'].map(h => (
-                              <th key={h} className={`px-4 py-3 text-xs uppercase ${h === 'Status' ? 'text-center' : 'text-left'}`} style={{ color: '#5b5775' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {histRecords.map((r, i) => {
-                            const d = new Date(r.date)
-                            const statusStyles: Record<string, { bg: string; color: string }> = {
-                              present: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-                              absent: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-                              late: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-                              leave: { bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
-                            }
-                            const st = statusStyles[r.status] || { bg: 'rgba(255,255,255,0.05)', color: '#94a3b8' }
-                            return (
-                              <tr key={i} style={{ borderBottom: i < histRecords.length - 1 ? '1px solid #1e1b3a' : 'none' }}>
-                                <td className="px-4 py-3 font-medium text-white">
-                                  {d.toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <div className="table-wrap">
+                        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Status</th>
+                              <th>Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {histRecords.map((r, idx) => (
+                              <tr key={idx}>
+                                <td>{r.date}</td>
+                                <td>
+                                  <span className={`status-badge ${r.status === 'present' ? 'active' : r.status === 'absent' ? 'inactive' : 'pending'}`}>
+                                    {r.status}
+                                  </span>
                                 </td>
-                                <td className="px-4 py-3" style={{ color: '#94a3b8' }}>{d.toLocaleDateString('en-PK', { weekday: 'short' })}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <span style={{ background: st.bg, color: st.color }} className="text-xs px-3 py-1 rounded-full font-medium capitalize">{r.status}</span>
-                                </td>
+                                <td>{r.remarks || '—'}</td>
                               </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
-                </>
+                </div>
               )}
-              </div>
             </div>
           )}
 
           {activeTab === 'leave' && (
-            <div style={{ margin: '-20px -24px', minHeight: 'calc(100vh - 113px)', background: '#0b0a14' }}>
-              <div className="px-6 pt-6 pb-8 mb-6">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">
-                  <Plane size={20} style={{ color: '#FBBF24' }} /> Leave Applications
-                </h2>
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="flex gap-1 rounded-lg p-1 flex-wrap max-w-md">
-                  {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setLeaveFilter(f)}
-                      style={leaveFilter === f ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors"
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Faculty Leave Requests</span>
+                <select value={leaveFilter} onChange={e => setLeaveFilter(e.target.value as any)}
+                  style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }}>
+                  <option value="all">All Request</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
               </div>
 
-              <div className="px-6 pb-12">
-              <div className="text-sm font-bold text-white mb-4">{filteredLeaves.length} applications</div>
-
-              {leaveLoading ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-8 text-center">Loading...</div>
-              ) : filteredLeaves.length === 0 ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-12 text-center">
-                  <Plane size={40} style={{ color: '#3a3650', margin: '0 auto 16px' }} />
-                  <p style={{ color: 'rgba(255,255,255,0.4)' }} className="text-sm">Koi leave application nahi mili.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {filteredLeaves.map(l => {
-                    const applicant = applicantMap[l.applicant_id]
-                    const statusStyles: Record<string, { bg: string; color: string }> = {
-                      pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-                      approved: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-                      rejected: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-                    }
-                    const st = statusStyles[l.status] || { bg: 'rgba(255,255,255,0.05)', color: '#94a3b8' }
-                    return (
-                      <div key={l.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4">
-                        <div className="flex justify-between items-start flex-wrap gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="font-bold text-sm text-white">{applicant?.name || 'Unknown'}</span>
-                              <span className="text-xs capitalize" style={{ color: '#5b5775' }}>{applicant?.role?.replace('_', ' ')}</span>
-                              <span style={{ background: st.bg, color: st.color }} className="text-xs px-2.5 py-0.5 rounded-full font-bold capitalize">
-                                {l.status}
-                              </span>
-                            </div>
-                            <div className="text-xs mb-1" style={{ color: '#94a3b8' }}>
-                              <span className="font-medium capitalize">{l.leave_type}</span> leave ·{' '}
-                              {new Date(l.from_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}
-                              {' to '}
-                              {new Date(l.to_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              {' · '}{l.days} day{l.days !== 1 ? 's' : ''}
-                            </div>
-                            {l.reason && <p className="text-xs italic" style={{ color: '#5b5775' }}>"{l.reason}"</p>}
-                          </div>
-
-                          {l.status === 'pending' && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => updateLeaveStatus(l.id, 'approved')}
-                                disabled={leaveSaving === l.id}
-                                style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 disabled:opacity-50 transition-opacity"
-                              >
-                                ✓ Approve
-                              </button>
-                              <button
-                                onClick={() => updateLeaveStatus(l.id, 'rejected')}
-                                disabled={leaveSaving === l.id}
-                                style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 disabled:opacity-50 transition-opacity"
-                              >
-                                ✕ Reject
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                {leaveLoading ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading applications...</p>
+                ) : filteredLeaves.length === 0 ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No leave records.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>Staff Applicant</th>
+                          <th>Role</th>
+                          <th>Dates Requested</th>
+                          <th>Reason for Leave</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLeaves.map(l => {
+                          const applicant = applicantMap[l.applicant_id]
+                          return (
+                            <tr key={l.id}>
+                              <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{applicant?.name || '—'}</td>
+                              <td style={{ textTransform: 'capitalize' }}>{applicant?.role || '—'}</td>
+                              <td>{l.start_date} to {l.end_date}</td>
+                              <td>{l.reason}</td>
+                              <td>
+                                <span className={`status-badge ${l.status === 'approved' ? 'active' : l.status === 'rejected' ? 'inactive' : 'pending'}`}>
+                                  {l.status}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                {l.status === 'pending' && (
+                                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                                    <button onClick={() => updateLeaveStatus(l.id, 'approved')} disabled={leaveSaving === l.id}
+                                      style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--accent-emerald)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                                      Approve
+                                    </button>
+                                    <button onClick={() => updateLeaveStatus(l.id, 'rejected')} disabled={leaveSaving === l.id}
+                                      style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--accent-rose)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {activeTab === 'recruitment' && (
-            <div style={{ margin: '-20px -24px', minHeight: 'calc(100vh - 113px)', background: '#0b0a14' }}>
-              <div className="px-6 pt-6 pb-8 mb-6">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-5">
-                  <Megaphone size={20} style={{ color: '#F472B6' }} /> Job Postings
-                </h2>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 max-w-[160px]">
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(244,114,182,0.15)' }} className="flex items-center justify-center mb-2">
-                      <ClipboardList size={15} style={{ color: '#F472B6' }} />
-                    </div>
-                    <div className="text-2xl font-extrabold text-white">{jobsList.length}</div>
-                    <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Total Postings</div>
-                  </div>
-                  <div className="flex gap-2 flex-wrap items-center">
-                    <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="flex gap-1 rounded-lg p-1">
-                      {(['open', 'closed', 'all'] as const).map(f => (
-                        <button
-                          key={f}
-                          onClick={() => setJobFilter(f)}
-                          style={jobFilter === f ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                          className="px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors"
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => { setShowJobForm(!showJobForm); resetJobForm() }}
-                      style={{ background: '#4f46e5' }}
-                      className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-                    >
-                      {showJobForm ? '✕ Cancel' : '➕ Post Job'}
-                    </button>
-                  </div>
-                </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Recruitment Vacancies board</span>
+                <button onClick={() => { setShowJobForm(!showJobForm); resetJobForm() }}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                  {showJobForm ? '✕ Cancel' : '+ Post Job'}
+                </button>
               </div>
 
-              <div className="px-6 pb-12">
-
               {showJobForm && (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-5 mb-5">
-                  <h3 className="text-sm font-bold text-white mb-4">New Job Posting</h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                    <input placeholder="Job Title * (e.g. Math Teacher)" value={jobForm.title} onChange={e => updateJobForm('title', e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500" />
-                    <input placeholder="Department (e.g. Teaching)" value={jobForm.department} onChange={e => updateJobForm('department', e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500" />
-                    <input placeholder="Vacancies" type="number" min="1" value={jobForm.vacancies} onChange={e => updateJobForm('vacancies', e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500" />
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Add Job Vacancy</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <input placeholder="Job Title *" type="text" value={jobForm.title} onChange={e => updateJobForm('title', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <input placeholder="Department" type="text" value={jobForm.department} onChange={e => updateJobForm('department', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+                    
+                    <input placeholder="Vacancies count" type="number" value={jobForm.vacancies} onChange={e => updateJobForm('vacancies', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
                   </div>
-                  <textarea placeholder="Job Description" value={jobForm.description} onChange={e => updateJobForm('description', e.target.value)} rows={3}
-                    style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                    className="w-full rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] resize-none placeholder-gray-500" />
-                  <textarea placeholder="Requirements / Qualifications" value={jobForm.requirements} onChange={e => updateJobForm('requirements', e.target.value)} rows={3}
-                    style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                    className="w-full rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] resize-none placeholder-gray-500" />
 
-                  {jobFormError && <p className="text-xs mb-2" style={{ color: '#ef4444' }}>{jobFormError}</p>}
+                  <textarea placeholder="Job Description" value={jobForm.description} onChange={e => updateJobForm('description', e.target.value)} rows={2}
+                    style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', marginBottom: 12 }} />
 
-                  <button
-                    onClick={handlePostJob}
-                    disabled={jobSaving}
-                    style={{ background: '#4f46e5' }}
-                    className="text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {jobSaving ? 'Posting...' : 'Post Job'}
+                  {jobFormError && <div style={{ fontSize: 12, color: 'var(--accent-rose)', marginBottom: 8 }}>{jobFormError}</div>}
+
+                  <button onClick={handlePostJob} disabled={jobSaving}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: jobSaving ? 0.6 : 1 }}>
+                    Post Job
                   </button>
                 </div>
               )}
 
-              {jobsLoading ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-8 text-center">Loading...</div>
-              ) : filteredJobs.length === 0 ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-12 text-center">
-                  <Megaphone size={40} style={{ color: '#3a3650', margin: '0 auto 16px' }} />
-                  <p style={{ color: 'rgba(255,255,255,0.4)' }} className="text-sm">Koi job posting nahi mili.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {filteredJobs.map(j => {
-                    const isExpanded = expandedJob === j.id
-                    const applicants = applicantsByJob[j.id] || []
-                    return (
-                      <div key={j.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden">
-                        <div className="p-4">
-                          <div className="flex justify-between items-start flex-wrap gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="font-bold text-sm text-white">{j.title}</span>
-                                {j.department && <span className="text-xs" style={{ color: '#5b5775' }}>· {j.department}</span>}
-                                <span style={j.status === 'open' ? { background: 'rgba(16,185,129,0.15)', color: '#10b981' } : { background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }} className="text-xs px-2.5 py-0.5 rounded-full font-bold capitalize">
-                                  {j.status}
-                                </span>
-                              </div>
-                              {j.description && <p className="text-xs mt-2" style={{ color: '#94a3b8' }}>{j.description}</p>}
-                              {j.requirements && (
-                                <p className="text-xs mt-1" style={{ color: '#5b5775' }}><span className="font-medium">Requirements:</span> {j.requirements}</p>
-                              )}
-                              <div className="text-xs mt-2" style={{ color: '#5b5775' }}>
-                                {j.vacancies} vacancy{j.vacancies !== 1 ? 'ies' : ''} · Posted {new Date(j.created_at).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col gap-2 items-end">
-                              <button
-                                onClick={() => toggleJobStatus(j.id, j.status)}
-                                disabled={jobToggling === j.id}
-                                style={j.status === 'open' ? { background: 'rgba(239,68,68,0.15)', color: '#ef4444' } : { background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 disabled:opacity-50 transition-opacity whitespace-nowrap"
-                              >
-                                {j.status === 'open' ? 'Close Job' : 'Reopen'}
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                {jobsLoading ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading postings...</p>
+                ) : filteredJobs.length === 0 ? (
+                  <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No jobs posted.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 18 }}>
+                    {filteredJobs.map(job => {
+                      const isOpen = job.status === 'open'
+                      return (
+                        <div key={job.id} style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 16, border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h4 style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-primary)' }}>{job.title}</h4>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button onClick={() => toggleJobStatus(job.id, job.status)} disabled={jobToggling === job.id}
+                                style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: isOpen ? 'var(--accent-rose)' : 'var(--accent-purple)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                                {isOpen ? 'Close Post' : 'Re-open'}
                               </button>
-                              {j.status === 'open' && (
-                                <button
-                                  onClick={() => copyApplyLink(j.id)}
-                                  style={{ background: 'rgba(167,139,250,0.15)', color: '#A78BFA' }}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity whitespace-nowrap"
-                                >
-                                  {copiedJobId === j.id ? '✓ Copied!' : '🔗 Copy Apply Link'}
-                                </button>
-                              )}
-                              <button
-                                onClick={() => toggleApplicants(j.id)}
-                                style={{ background: 'rgba(244,114,182,0.15)', color: '#F472B6' }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity whitespace-nowrap"
-                              >
-                                👥 Applicants {isExpanded ? '▲' : '▼'}
+                              <button onClick={() => toggleApplicants(job.id)}
+                                style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer' }}>
+                                Applicants list
                               </button>
                             </div>
                           </div>
-                        </div>
+                          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Department: {job.department || '—'} · Vacancies: {job.vacancies}</p>
 
-                        {isExpanded && (
-                          <div style={{ borderTop: '1px solid #1e1b3a', background: '#0d0c1d' }} className="p-3">
-                            {loadingApplicants === j.id ? (
-                              <p className="text-xs text-center py-4" style={{ color: '#5b5775' }}>Loading applicants...</p>
-                            ) : applicants.length === 0 ? (
-                              <p className="text-xs text-center py-4" style={{ color: '#5b5775' }}>Abhi tak koi applicant nahi aaya.</p>
-                            ) : (
-                              <div className="space-y-2">
-                                {applicants.map((a) => {
-                                  const appStatusStyles: Record<string, { bg: string; color: string }> = {
-                                    applied: { bg: 'rgba(99,102,241,0.15)', color: '#6366f1' },
-                                    shortlisted: { bg: 'rgba(167,139,250,0.15)', color: '#A78BFA' },
-                                    hired: { bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
-                                    rejected: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-                                  }
-                                  const ast = appStatusStyles[a.status] || { bg: 'rgba(255,255,255,0.05)', color: '#94a3b8' }
-                                  return (
-                                    <div key={a.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-lg p-3">
-                                      <div className="flex justify-between items-start flex-wrap gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium text-sm text-white">{a.name}</span>
-                                            <span style={{ background: ast.bg, color: ast.color }} className="text-xs px-2 py-0.5 rounded-full font-bold capitalize">
-                                              {a.status}
-                                            </span>
-                                          </div>
-                                          <div className="text-xs mt-1" style={{ color: '#94a3b8' }}>
-                                            📞 {a.phone} {a.email ? `· ✉️ ${a.email}` : ''}
-                                          </div>
-                                          {a.cover_note && <p className="text-xs mt-1 italic" style={{ color: '#5b5775' }}>"{a.cover_note}"</p>}
-                                          {a.resume_url && (
-                                            <a href={a.resume_url} target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8' }} className="text-xs hover:underline inline-flex items-center gap-1 mt-1">
-                                              📎 View Resume
-                                            </a>
-                                          )}
-                                        </div>
-
-                                        {a.status === 'applied' || a.status === 'shortlisted' ? (
-                                          <div className="flex gap-1.5 flex-wrap">
-                                            {a.status === 'applied' && (
-                                              <button
-                                                onClick={() => updateApplicantStatus(j.id, a.id, 'shortlisted')}
-                                                disabled={updatingApplicant === a.id}
-                                                style={{ background: 'rgba(167,139,250,0.15)', color: '#A78BFA' }}
-                                                className="text-xs font-semibold px-2.5 py-1 rounded-lg hover:opacity-80 disabled:opacity-50"
-                                              >
-                                                Shortlist
-                                              </button>
-                                            )}
-                                            <button
-                                              onClick={() => updateApplicantStatus(j.id, a.id, 'hired')}
-                                              disabled={updatingApplicant === a.id}
-                                              style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
-                                              className="text-xs font-semibold px-2.5 py-1 rounded-lg hover:opacity-80 disabled:opacity-50"
-                                            >
+                          {expandedJob === job.id && (
+                            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-card)', padding: 10, borderRadius: 8 }}>
+                              {loadingApplicants === job.id ? (
+                                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading applicants...</p>
+                              ) : (applicantsByJob[job.id] || []).length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No applications received yet.</p>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  {(applicantsByJob[job.id] || []).map(app => (
+                                    <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)', padding: 10, borderRadius: 6 }}>
+                                      <div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{app.name}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Email: {app.email} · Phone: {app.phone}</div>
+                                      </div>
+                                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <span className={`status-badge ${app.status === 'hired' ? 'active' : app.status === 'rejected' ? 'inactive' : 'pending'}`}>{app.status}</span>
+                                        {app.status === 'applied' && (
+                                          <>
+                                            <button onClick={() => updateApplicantStatus(job.id, app.id, 'shortlisted')}
+                                              style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--accent-cyan)', color: '#fff', fontSize: 10, border: 'none', cursor: 'pointer' }}>
+                                              Shortlist
+                                            </button>
+                                            <button onClick={() => updateApplicantStatus(job.id, app.id, 'hired')}
+                                              style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--accent-emerald)', color: '#fff', fontSize: 10, border: 'none', cursor: 'pointer' }}>
                                               Hire
                                             </button>
-                                            <button
-                                              onClick={() => updateApplicantStatus(j.id, a.id, 'rejected')}
-                                              disabled={updatingApplicant === a.id}
-                                              style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
-                                              className="text-xs font-semibold px-2.5 py-1 rounded-lg hover:opacity-80 disabled:opacity-50"
-                                            >
-                                              Reject
-                                            </button>
-                                          </div>
-                                        ) : null}
+                                          </>
+                                        )}
                                       </div>
                                     </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'payroll' && (
-            <div style={{ margin: '-20px -24px', minHeight: 'calc(100vh - 113px)', background: '#0b0a14' }}>
-              <div className="px-6 pt-6 pb-8 mb-6">
-                <div className="flex justify-between items-center flex-wrap gap-3">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Wallet size={20} style={{ color: '#4ADE80' }} /> Payroll
-                  </h2>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="flex gap-1 rounded-lg p-1">
-                    <button
-                      onClick={() => setPayrollView('structure')}
-                      style={payrollView === 'structure' ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
-                    >
-                      Salary Structure
-                    </button>
-                    <button
-                      onClick={() => setPayrollView('process')}
-                      style={payrollView === 'process' ? { background: '#4f46e5', color: '#fff' } : { color: '#94a3b8' }}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
-                    >
-                      Process Payroll
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-6 pb-12">
-
-              {payrollLoading ? (
-                <div style={{ background: '#121124', border: '1px solid #1e1b3a', color: 'rgba(255,255,255,0.4)' }} className="rounded-xl p-8 text-center">Loading...</div>
-              ) : payrollView === 'structure' ? (
-                <div className="space-y-2.5">
-                  {payrollStaffList.map(s => {
-                    const structure = salaryStructures[s.id]
-                    const isEditing = editingStaffId === s.id
-                    const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
-                    return (
-                      <div key={s.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl overflow-hidden">
-                        <div className="p-4 flex justify-between items-center flex-wrap gap-3">
-                          <div className="flex items-center gap-3">
-                            <div style={{ background: 'rgba(74,222,128,0.15)' }} className="w-9 h-9 rounded-full flex items-center justify-center">
-                              <RoleIcon size={16} style={{ color: '#4ADE80' }} />
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-white">{s.name}</div>
-                              <div className="text-xs capitalize" style={{ color: '#94a3b8' }}>{s.role.replace('_', ' ')}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {structure ? (
-                              <span className="text-sm font-bold" style={{ color: '#10b981' }}>Rs. {structureTotal(s.id).toLocaleString()}/mo</span>
-                            ) : (
-                              <span className="text-xs" style={{ color: '#5b5775' }}>No structure set</span>
-                            )}
-                            <button
-                              onClick={() => isEditing ? setEditingStaffId(null) : openStructureEdit(s.id)}
-                              style={{ background: 'rgba(74,222,128,0.15)', color: '#4ADE80' }}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity"
-                            >
-                              {isEditing ? '✕ Cancel' : structure ? 'Edit' : '➕ Set Structure'}
-                            </button>
-                          </div>
-                        </div>
-
-                        {isEditing && (
-                          <div style={{ borderTop: '1px solid #1e1b3a', background: '#0d0c1d' }} className="p-4">
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-                              {[
-                                { key: 'basic', label: 'Basic' },
-                                { key: 'medical', label: 'Medical' },
-                                { key: 'mobile', label: 'Mobile' },
-                                { key: 'transport', label: 'Transport' },
-                                { key: 'other', label: 'Other' },
-                              ].map(f => (
-                                <div key={f.key}>
-                                  <label className="text-xs block mb-1" style={{ color: '#94a3b8' }}>{f.label}</label>
-                                  <input
-                                    type="number"
-                                    placeholder="0"
-                                    value={(structureForm as any)[f.key]}
-                                    onChange={e => setStructureForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                                    style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                                    className="w-full rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500"
-                                  />
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                            <button
-                              onClick={saveStructure}
-                              disabled={savingStructure}
-                              style={{ background: '#4f46e5' }}
-                              className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-                            >
-                              {savingStructure ? 'Saving...' : 'Save Structure'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <>
-                  <div style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 mb-4 flex items-center gap-3">
-                    <label className="text-sm font-medium" style={{ color: '#94a3b8' }}>Month:</label>
-                    <input
-                      type="month"
-                      value={payrollMonth}
-                      onChange={e => setPayrollMonth(e.target.value)}
-                      style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                      className="rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] [color-scheme:dark]"
-                    />
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {payrollStaffList.map(s => {
-                      const gross = structureTotal(s.id)
-                      const record = payrollRecords[s.id]
-                      const isProcessed = !!record
-                      const RoleIcon = { teacher: GraduationCap, admin: UserPlus, accounts: Wallet, principal: ClipboardList, school_owner: Crown }[s.role as "teacher" | "admin" | "accounts" | "principal" | "school_owner"] || Users
-                      return (
-                        <div key={s.id} style={{ background: '#121124', border: '1px solid #1e1b3a' }} className="rounded-xl p-4 flex justify-between items-center flex-wrap gap-3">
-                          <div className="flex items-center gap-3">
-                            <div style={{ background: 'rgba(74,222,128,0.15)' }} className="w-9 h-9 rounded-full flex items-center justify-center">
-                              <RoleIcon size={16} style={{ color: '#4ADE80' }} />
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-white">{s.name}</div>
-                              <div className="text-xs" style={{ color: '#94a3b8' }}>Gross: Rs. {gross.toLocaleString()}</div>
-                            </div>
-                          </div>
-
-                          {gross === 0 ? (
-                            <span className="text-xs" style={{ color: '#5b5775' }}>No salary structure set</span>
-                          ) : isProcessed ? (
-                            <div className="text-right">
-                              <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }} className="text-xs font-bold px-2.5 py-1 rounded-full">✓ Processed</span>
-                              <div className="text-xs mt-1" style={{ color: '#94a3b8' }}>Net: Rs. {record.net.toLocaleString()}</div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                placeholder="Deductions"
-                                value={deductionInputs[s.id] || ''}
-                                onChange={e => setDeductionInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
-                                style={{ background: '#090810', border: '1px solid #221f3b', color: '#fff' }}
-                                className="w-28 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#6366f1] focus:ring-1 focus:ring-[#6366f1] placeholder-gray-500"
-                              />
-                              <button
-                                onClick={() => processPayroll(s.id)}
-                                disabled={processingStaffId === s.id}
-                                style={{ background: '#4f46e5' }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-                              >
-                                {processingStaffId === s.id ? 'Processing...' : 'Process'}
-                              </button>
+                              )}
                             </div>
                           )}
                         </div>
                       )
                     })}
                   </div>
-                </>
-              )}
+                )}
               </div>
             </div>
           )}
 
-          {activeTab !== 'overview' && activeTab !== 'staff' && activeTab !== 'attendance' && activeTab !== 'leave' && activeTab !== 'recruitment' && activeTab !== 'payroll' && (
-            <div style={{ background: '#12102A', borderRadius: 16, padding: 60, textAlign: 'center', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>
-                {('' as any)[activeTab]}
+          {activeTab === 'payroll' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Staff Salary Payroll ledger</span>
+                <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 4 }}>
+                  <button onClick={() => setPayrollView('structure')}
+                    style={{ padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: payrollView === 'structure' ? 'var(--accent-purple)' : 'transparent', color: '#fff' }}>
+                    Structures
+                  </button>
+                  <button onClick={() => setPayrollView('process')}
+                    style={{ padding: '6px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: payrollView === 'process' ? 'var(--accent-purple)' : 'transparent', color: '#fff' }}>
+                    Process Monthly
+                  </button>
+                </div>
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, textTransform: 'capitalize' }}>{activeTab} Management</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Coming soon — agle update mein!</div>
+
+              {payrollLoading ? (
+                <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading payroll details...</p>
+              ) : payrollView === 'structure' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: editingStaffId ? '360px 1fr' : '1fr', gap: 20 }}>
+                  {editingStaffId && (
+                    <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, height: 'fit-content' }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>Edit Salary structure</h3>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                        {['basic', 'medical', 'mobile', 'transport', 'other'].map(f => (
+                          <div key={f}>
+                            <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'capitalize', marginBottom: 4 }}>{f} Allowance (Rs.)</label>
+                            <input type="number" value={(structureForm as any)[f]} onChange={e => setStructureForm(prev => ({ ...prev, [f]: e.target.value }))}
+                              style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 12.5, color: 'var(--text-primary)' }} />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={saveStructure} disabled={savingStructure}
+                          style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {savingStructure ? 'Saving...' : 'Save Structure'}
+                        </button>
+                        <button onClick={() => setEditingStaffId(null)}
+                          style={{ padding: '10px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 12.5, cursor: 'pointer' }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div className="table-wrap">
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th>Staff Member</th>
+                            <th>Role</th>
+                            <th>Basic Salary</th>
+                            <th>Allowances Total</th>
+                            <th>Gross Total</th>
+                            <th style={{ textAlign: 'right' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payrollStaffList.map(s => {
+                            const struct = salaryStructures[s.id]
+                            const gross = structureTotal(s.id)
+                            return (
+                              <tr key={s.id}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                                <td style={{ textTransform: 'capitalize' }}>{s.role}</td>
+                                <td>Rs. {struct?.basic?.toLocaleString() || 0}</td>
+                                <td>Rs. {((struct?.medical || 0) + (struct?.mobile || 0) + (struct?.transport || 0) + (struct?.other || 0)).toLocaleString()}</td>
+                                <td style={{ fontWeight: 750, color: 'var(--accent-purple)' }}>Rs. {gross.toLocaleString()}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button onClick={() => openStructureEdit(s.id)}
+                                    style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer' }}>
+                                    Configure
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Month Ledger:</span>
+                    <input type="month" value={payrollMonth} onChange={e => setPayrollMonth(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }} />
+                  </div>
+
+                  <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                    <div className="table-wrap">
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th>Staff Member</th>
+                            <th>Gross Salary</th>
+                            <th>Deductions (Rs.)</th>
+                            <th>Net Payable</th>
+                            <th>Disbursement Status</th>
+                            <th style={{ textAlign: 'right' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payrollStaffList.map(s => {
+                            const record = payrollRecords[s.id]
+                            const gross = structureTotal(s.id)
+                            const isProcessed = !!record
+                            return (
+                              <tr key={s.id}>
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                                <td>Rs. {gross.toLocaleString()}</td>
+                                <td>
+                                  {isProcessed ? (
+                                    <span>Rs. {record.deductions.toLocaleString()}</span>
+                                  ) : (
+                                    <input type="number" placeholder="Deductions" value={deductionInputs[s.id] || ''} onChange={e => setDeductionInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                      style={{ width: 100, padding: '6px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }} />
+                                  )}
+                                </td>
+                                <td style={{ fontWeight: 800, color: 'var(--accent-purple)' }}>Rs. {isProcessed ? record.net.toLocaleString() : (gross - (parseFloat(deductionInputs[s.id] || '0') || 0)).toLocaleString()}</td>
+                                <td>
+                                  <span className={`status-badge ${isProcessed ? 'active' : 'inactive'}`}>
+                                    {isProcessed ? `Processed (${record.status})` : 'Unprocessed'}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button onClick={() => processPayroll(s.id)} disabled={processingStaffId === s.id}
+                                    style={{ padding: '6px 12px', border: 'none', borderRadius: 6, background: 'var(--accent-purple)', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                                    {processingStaffId === s.id ? 'Processing' : isProcessed ? 'Reprocess' : 'Process'}
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
+
+          {activeTab === 'reset-password' && (
+            <div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <input
+                    placeholder="🔍 Search user by name or ID..."
+                    value={resetSearch}
+                    onChange={e => setResetSearch(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                {resetLoading ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th>User Info</th>
+                          <th>Auto ID</th>
+                          <th>Role</th>
+                          <th>Phone</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resetUsers
+                          .filter(u => {
+                            const q = resetSearch.toLowerCase()
+                            return !q || u.name?.toLowerCase().includes(q) || u.auto_id?.toLowerCase().includes(q)
+                          })
+                          .map(u => (
+                            <tr key={u.id}>
+                              <td>
+                                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{u.name}</div>
+                              </td>
+                              <td style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{u.auto_id || '—'}</td>
+                              <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{u.phone || '—'}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedResetUser(u)
+                                    setNewResetPassword('')
+                                    setResetError('')
+                                    setResetSuccess('')
+                                  }}
+                                  className="row-btn"
+                                  style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                                >
+                                  🔑 Reset Password
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {selectedResetUser && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,24,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420 }}>
+                    <h2 style={{ margin: '0 0 16px', color: 'var(--text-primary)', fontSize: 17, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>
+                      🔑 Reset Password
+                    </h2>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+                      Resetting password for <strong>{selectedResetUser.name}</strong> ({selectedResetUser.role}).
+                    </p>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Naya Password</label>
+                      <input
+                        type="text"
+                        placeholder="Naya password (min 6 characters)"
+                        value={newResetPassword}
+                        onChange={e => setNewResetPassword(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+
+                    {resetError && (
+                      <div style={{ fontSize: 12.5, color: '#F87171', marginBottom: 12 }}>{resetError}</div>
+                    )}
+                    {resetSuccess && (
+                      <div style={{ fontSize: 12.5, color: '#34D399', marginBottom: 12 }}>{resetSuccess}</div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => setSelectedResetUser(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+                      <button onClick={handleResetPassword} disabled={resettingUser}
+                        style={{ flex: 2, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        {resettingUser ? '⏳ Resetting...' : '🔑 Reset Password'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
-    </div>
+    </DashboardLayout>
   )
 }

@@ -1,6 +1,8 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import DashboardLayout from "../../DashboardLayout";
 
 const supabase = createClient(
   "https://nmnfurisfmpqgzdwynvj.supabase.co",
@@ -8,16 +10,16 @@ const supabase = createClient(
 );
 
 const TYPE_META: Record<string, { label: string; cls: string }> = {
-  homework: { label: "Homework", cls: "bg-purple-100 text-purple-700" },
-  classwork: { label: "Classwork", cls: "bg-blue-100 text-blue-700" },
-  notice: { label: "Notice", cls: "bg-yellow-100 text-yellow-700" },
+  homework: { label: "Homework", cls: "bg-purple-500/10 text-purple-400" },
+  classwork: { label: "Classwork", cls: "bg-blue-500/10 text-blue-400" },
+  notice: { label: "Notice", cls: "bg-yellow-500/10 text-yellow-400" },
 };
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  pending: { label: "Not Submitted", cls: "bg-gray-100 text-gray-500" },
-  submitted: { label: "Submitted — Pending Review", cls: "bg-blue-100 text-blue-700" },
-  approved: { label: "Approved", cls: "bg-green-100 text-green-700" },
-  rejected: { label: "Rejected — Resubmit", cls: "bg-red-100 text-red-700" },
+  pending: { label: "Not Submitted", cls: "bg-gray-500/10 text-gray-400" },
+  submitted: { label: "Submitted — Review Pending", cls: "bg-blue-500/10 text-blue-400" },
+  approved: { label: "Approved", cls: "bg-green-500/10 text-green-400" },
+  rejected: { label: "Rejected — Resubmit", cls: "bg-red-500/10 text-red-400" },
 };
 
 export default function StudentDiaryPage() {
@@ -70,104 +72,101 @@ export default function StudentDiaryPage() {
   const filteredEntries = entries.filter((e) => filter === "all" || e.type === filter);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-3xl mx-auto">
-        <a href="/dashboard/student" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mb-3 font-medium">
-          <span aria-hidden="true">←</span> Back to Dashboard
-        </a>
-
-        <div className="mb-5">
-          <h1 className="text-2xl font-bold text-gray-900">Diary / Homework</h1>
-          <p className="text-gray-500 text-sm mt-1">
+    <DashboardLayout
+      role="student"
+      activePath="/dashboard/student/diary"
+      onRefresh={fetchData}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>📔 Diary & Homework</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
             {student ? `${student.name} · Grade ${student.grade} - Section ${student.section}` : "Loading..."}
           </p>
         </div>
+      </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {[
-            { value: "all", label: "All" },
-            { value: "homework", label: "📔 Homework" },
-            { value: "classwork", label: "✏️ Classwork" },
-            { value: "notice", label: "📌 Notice" },
-          ].map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value as any)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                filter === f.value
-                  ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { value: "all", label: "All Records" },
+          { value: "homework", label: "📔 Homework" },
+          { value: "classwork", label: "✏️ Classwork" },
+          { value: "notice", label: "📌 Notice Board" },
+        ].map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setFilter(f.value as any)}
+            style={{
+              padding: '8px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, transition: 'all 0.2s',
+              background: filter === f.value ? 'var(--accent-purple)' : 'var(--bg-card)',
+              color: filter === f.value ? '#fff' : 'var(--text-secondary)',
+              boxShadow: 'var(--shadow-card)'
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
-        {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">Loading...</div>
-        ) : !student ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">
-            Student profile nahi mila. Contact admin.
-          </div>
-        ) : filteredEntries.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
-            Abhi tak koi entry nahi hai
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredEntries.map((entry) => {
-              const typeMeta = TYPE_META[entry.type] || TYPE_META.notice;
-              const submission = submissions[entry.id];
-              const status = submission?.status || "pending";
-              const statusMeta = STATUS_META[status];
-              const isExpanded = expandedEntry === entry.id;
+      {loading ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Loading entries...</div>
+      ) : !student ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>Student profile profile not found.</div>
+      ) : filteredEntries.length === 0 ? (
+        <div style={{ padding: 40, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No diary logs recorded.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {filteredEntries.map((entry) => {
+            const typeMeta = TYPE_META[entry.type] || TYPE_META.notice;
+            const submission = submissions[entry.id];
+            const status = submission?.status || "pending";
+            const statusMeta = STATUS_META[status];
+            const isExpanded = expandedEntry === entry.id;
 
-              return (
-                <div key={entry.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold capitalize ${typeMeta.cls}`}>
-                        {typeMeta.label}
-                      </span>
-                      <span className="text-xs text-gray-400">{entry.subject} · {entry.date}</span>
-                    </div>
-
-                    <div className="font-medium text-sm text-gray-900">{entry.title}</div>
-                    {entry.body && <p className="text-xs text-gray-500 mt-1">{entry.body}</p>}
-
-                    {entry.attachment_url && (
-                      <a href={entry.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
-                        📎 Teacher's attachment
-                      </a>
-                    )}
-
-                    {entry.type === "homework" && (
-                      <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${statusMeta.cls}`}>
-                          {statusMeta.label}
-                        </span>
-                        <button
-                          onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
-                          className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          {(status === "pending" || status === "rejected") ? "Submit Work" : "View Details"} {isExpanded ? "▲" : "▼"}
-                        </button>
-                      </div>
-                    )}
+            return (
+              <div key={entry.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, overflow: 'hidden' }}>
+                <div style={{ padding: 18 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', background: typeMeta.cls.split(' ')[0], color: typeMeta.cls.split(' ')[1] }}>
+                      {typeMeta.label}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{entry.subject} · {entry.date}</span>
                   </div>
 
-                  {isExpanded && entry.type === "homework" && (
-                    <SubmitPanel student={student} entry={entry} submission={submission} onSubmitted={fetchData} />
+                  <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{entry.title}</h4>
+                  {entry.body && <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>{entry.body}</p>}
+
+                  {entry.attachment_url && (
+                    <a href={entry.attachment_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 600, marginTop: 8 }}>
+                      📎 Download Attachment file
+                    </a>
+                  )}
+
+                  {entry.type === "homework" && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, borderTop: '1px solid var(--border-subtle)', paddingTop: 14, flexWrap: 'wrap', gap: 10 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, textTransform: 'uppercase', background: statusMeta.cls.split(' ')[0], color: statusMeta.cls.split(' ')[1] }}>
+                        {statusMeta.label}
+                      </span>
+                      <button
+                        onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
+                        style={{ padding: '6px 12px', border: 'none', borderRadius: 8, background: 'var(--bg-elevated)', color: 'var(--accent-purple)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                      >
+                        {(status === "pending" || status === "rejected") ? "Submit Work" : "View Details"} {isExpanded ? "▲" : "▼"}
+                      </button>
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+
+                {isExpanded && entry.type === "homework" && (
+                  <SubmitPanel student={student} entry={entry} submission={submission} onSubmitted={fetchData} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </DashboardLayout>
   );
 }
 
@@ -183,7 +182,7 @@ function SubmitPanel({ student, entry, submission, onSubmitted }: any) {
   async function handleSubmit() {
     setError("");
     if (!file && !note.trim()) {
-      setError("File upload karen ya note likhen");
+      setError("Please write note or upload file.");
       return;
     }
     setSaving(true);
@@ -235,62 +234,62 @@ function SubmitPanel({ student, entry, submission, onSubmitted }: any) {
 
       await onSubmitted();
     } catch (err: any) {
-      setError(err.message || "Submit nahi ho saka, dobara koshish karen");
+      setError(err.message || "Submit failed, please retry.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50 p-4">
+    <div style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', padding: 16 }}>
       {isLocked ? (
         <div>
-          <p className="text-xs text-gray-500 mb-2">
-            Aapne submit kar diya hai — review ke baad result yahan aayega.
+          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 8 }}>
+            Your work has been submitted. Review results will display here.
           </p>
           {submission?.submission_file_url && (
-            <a href={submission.submission_file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
-              📎 Apni submitted file dekhen
+            <a href={submission.submission_file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 600 }}>
+              📎 View submitted file
             </a>
           )}
           {submission?.submission_note && (
-            <p className="text-xs text-gray-500 mt-2">Note: "{submission.submission_note}"</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>Submission Note: "{submission.submission_note}"</p>
           )}
         </div>
       ) : (
         <>
           {status === "rejected" && submission?.teacher_remarks && (
-            <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">
-              Teacher ka remark: "{submission.teacher_remarks}" — dobara submit karen.
+            <div style={{ fontSize: 12.5, color: 'var(--accent-rose)', background: 'rgba(244,63,94,0.1)', padding: '10px 12px', borderRadius: 8, marginBottom: 12 }}>
+              Teacher Remarks: "{submission.teacher_remarks}" — Please correct and resubmit.
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg px-3 py-2 cursor-pointer hover:bg-white transition-colors mb-3">
-            📎 {file ? file.name : "Apna kaam upload karen (PDF/JPEG/DOC)"}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', border: '1px dashed var(--border-subtle)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', background: 'var(--bg-card)', marginBottom: 12 }}>
+            📎 {file ? file.name : "Upload assignment file (PDF/Image/Word)"}
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              className="hidden"
+              style={{ display: 'none' }}
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
           </label>
 
           <textarea
-            placeholder="Note (optional)..."
+            placeholder="Add comments / note..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', outline: 'none', resize: 'none', marginBottom: 12 }}
           />
 
-          {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+          {error && <p style={{ fontSize: 12, color: 'var(--accent-rose)', marginBottom: 8 }}>{error}</p>}
 
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
           >
-            {saving ? "Submitting..." : "Submit"}
+            {saving ? "Submitting..." : "Submit Homework"}
           </button>
         </>
       )}
