@@ -2133,7 +2133,7 @@ export default function AdminDashboard() {
                     <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Section</label>
                     <select value={timesheetSection} onChange={e => { setTimesheetSection(e.target.value); setSelectedCell(null); }}
                       style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 13 }}>
-                      {['A','B','C','D'].map(s => <option key={s} value={s}>Section {s}</option>)}
+                      {['A','B'].map(s => <option key={s} value={s}>Section {s}</option>)}
                     </select>
                   </div>
                 </div>
