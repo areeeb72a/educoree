@@ -124,7 +124,17 @@ export default function LoginPage() {
         .ibtn:hover { color: #fff; }
         .lbl { display: block; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.4); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
         .forgot-text { background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #34D399; font-family: 'Inter', sans-serif; padding: 0; transition: opacity 0.15s; }
-        .forgot-text:hover { opacity: 0.8; }
+         .forgot-text:hover { opacity: 0.8; }
+        
+        /* Browser Autofill Styling Fix */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 30px #060B18 inset !important;
+          -webkit-text-fill-color: #fff !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
       `}</style>
 
       {/* Left panel: Background Illustration (52% width) */}
