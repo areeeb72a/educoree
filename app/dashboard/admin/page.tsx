@@ -958,8 +958,7 @@ export default function AdminDashboard() {
     }
     setLoading(false)
   }
-
-  const tabs = ['overview', 'staff', 'students', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
+  const tabs = ['overview', 'staff', 'students', 'exams', 'attendance', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
   const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
@@ -985,11 +984,10 @@ export default function AdminDashboard() {
               borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
               transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
             }}>
-            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab}
+            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab === 'exams' ? '📝 Exams' : tab}
           </button>
         ))}
       </div>
-
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading HR command...</div>
       ) : (
