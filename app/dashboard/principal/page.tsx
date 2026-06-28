@@ -73,6 +73,8 @@ export default function PrincipalDashboard() {
   const [principalRating, setPrincipalRating] = useState(5)
   const [savingAppraisal, setSavingAppraisal] = useState(false)
   const [appraisalMsg, setAppraisalMsg] = useState('')
+  const [selectedTeacherId, setSelectedTeacherId] = useState('')
+  const [showCreateAppraisal, setShowCreateAppraisal] = useState(false)
 
   useEffect(() => { fetchData() }, [])
   useEffect(() => { if (activeTab === 'attendance' && !attLoaded) fetchAttendanceSummary() }, [activeTab])
@@ -80,7 +82,7 @@ export default function PrincipalDashboard() {
   useEffect(() => { if (activeTab === 'students' && !studentsLoaded) fetchStudents() }, [activeTab])
   useEffect(() => { if (activeTab === 'classes' && !classesLoaded) fetchClasses() }, [activeTab])
   useEffect(() => { if (activeTab === 'reports' && !reportsLoaded) fetchReports() }, [activeTab])
-  useEffect(() => { if (activeTab === 'appraisal' && !appraisalsLoaded) fetchAppraisals() }, [activeTab])
+  useEffect(() => { if (activeTab === 'appraisal' && !appraisalsLoaded) { fetchAppraisals(); fetchTeachers(); } }, [activeTab])
 
   async function fetchReports() {
     if (!branchId) return
@@ -198,6 +200,44 @@ export default function PrincipalDashboard() {
       setPrincipalComment('')
       setPrincipalRating(5)
       setSelectedAppraisal(null)
+      fetchAppraisals()
+    } catch (err: any) {
+      setAppraisalMsg('Error: ' + err.message)
+    }
+    setSavingAppraisal(false)
+  }
+
+  async function createTeacherAppraisal() {
+    if (!selectedTeacherId) {
+      setAppraisalMsg('Error: Please select a teacher.')
+      return
+    }
+    if (!principalComment.trim()) {
+      setAppraisalMsg('Error: Please write down evaluation remarks.')
+      return
+    }
+
+    setSavingAppraisal(true)
+    setAppraisalMsg('')
+    try {
+      const { error } = await supabase
+        .from('appraisals')
+        .insert({
+          school_id: branch?.school_id,
+          teacher_id: selectedTeacherId,
+          objectives: principalComment,
+          self_rating: 5,
+          principal_comment: principalComment,
+          principal_rating: Number(principalRating),
+          owner_status: 'pending'
+        })
+
+      if (error) throw error
+      setAppraisalMsg('Success: Performance appraisal sent to Owner!')
+      setPrincipalComment('')
+      setPrincipalRating(5)
+      setSelectedTeacherId('')
+      setShowCreateAppraisal(false)
       fetchAppraisals()
     } catch (err: any) {
       setAppraisalMsg('Error: ' + err.message)
@@ -892,83 +932,93 @@ export default function PrincipalDashboard() {
 
           {activeTab === 'appraisal' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Teacher Performance Appraisals</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Evaluate and add principal ratings for school teachers.</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Teacher Performance Appraisals</span>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>Evaluate and submit teacher ratings and feedback directly to the School Owner.</p>
+                </div>
+                <button onClick={() => { setShowCreateAppraisal(!showCreateAppraisal); setSelectedAppraisal(null); setSelectedTeacherId(''); setPrincipalComment(''); setPrincipalRating(5); setAppraisalMsg('') }}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                  {showCreateAppraisal ? '✕ View Ledger' : '+ Create Appraisal'}
+                </button>
               </div>
 
               {appraisalsLoading ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading appraisals...</div>
-              ) : appraisalsList.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, color: 'var(--text-muted)' }}>
-                  No teacher appraisal applications found.
-                </div>
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading appraisals ledger...</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'start' }}>
+                  
                   {/* List */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {appraisalsList.map(app => {
-                      const teacherName = app.profiles?.name || 'Teacher';
-                      const teacherId = app.profiles?.auto_id || 'TH';
-                      const isActive = selectedAppraisal?.id === app.id;
+                    {appraisalsList.length === 0 ? (
+                      <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, color: 'var(--text-muted)' }}>
+                        No teacher performance appraisals recorded yet.
+                      </div>
+                    ) : (
+                      appraisalsList.map(app => {
+                        const teacherName = app.profiles?.name || 'Teacher';
+                        const teacherId = app.profiles?.auto_id || 'TH';
+                        const isActive = selectedAppraisal?.id === app.id;
 
-                      let statusBadge = 'Pending';
-                      let badgeColor = 'var(--text-muted)';
-                      if (app.owner_status === 'fully_approved') { statusBadge = 'Fully Approved'; badgeColor = 'var(--accent-emerald)'; }
-                      else if (app.owner_status === 'partially_approved') { statusBadge = 'Partially Approved'; badgeColor = 'var(--accent-purple)'; }
-                      else if (app.owner_status === 'rejected') { statusBadge = 'Rejected'; badgeColor = 'var(--accent-rose)'; }
-                      else if (app.owner_status === 'hold') { statusBadge = 'Hold'; badgeColor = 'var(--accent-amber)'; }
+                        let statusBadge = 'Pending Review';
+                        let badgeColor = 'var(--text-muted)';
+                        if (app.owner_status === 'fully_approved') { statusBadge = 'Fully Approved'; badgeColor = 'var(--accent-emerald)'; }
+                        else if (app.owner_status === 'partially_approved') { statusBadge = 'Partially Approved'; badgeColor = 'var(--accent-purple)'; }
+                        else if (app.owner_status === 'rejected') { statusBadge = 'Rejected'; badgeColor = 'var(--accent-rose)'; }
+                        else if (app.owner_status === 'hold') { statusBadge = 'Hold / Pending Owner'; badgeColor = 'var(--accent-amber)'; }
 
-                      return (
-                        <div key={app.id} onClick={() => { setSelectedAppraisal(app); setPrincipalComment(app.principal_comment || ''); setPrincipalRating(app.principal_rating || 5); setAppraisalMsg('') }}
-                          style={{
-                            background: isActive ? 'var(--bg-elevated)' : 'var(--bg-card)',
-                            border: `1px solid ${isActive ? 'var(--accent-purple)' : 'var(--border-subtle)'}`,
-                            borderRadius: 16, padding: 18, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: 10
-                          }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <strong style={{ fontSize: 14, color: 'var(--text-primary)' }}>{teacherName}</strong>
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>({teacherId})</span>
+                        return (
+                          <div key={app.id} onClick={() => { setSelectedAppraisal(app); setShowCreateAppraisal(false); setPrincipalComment(app.principal_comment || ''); setPrincipalRating(app.principal_rating || 5); setAppraisalMsg('') }}
+                            style={{
+                              background: isActive ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                              border: `1px solid ${isActive ? 'var(--accent-purple)' : 'var(--border-subtle)'}`,
+                              borderRadius: 16, padding: 18, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: 10
+                            }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <strong style={{ fontSize: 14, color: 'var(--text-primary)' }}>{teacherName}</strong>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>({teacherId})</span>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: badgeColor }}>{statusBadge}</span>
                             </div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: badgeColor }}>{statusBadge}</span>
-                          </div>
 
-                          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 8 }}>
-                            <strong>Objectives:</strong> {app.objectives}
-                          </div>
+                            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', padding: 12, borderRadius: 8 }}>
+                              <strong>Evaluation Remarks:</strong> {app.principal_comment || app.objectives}
+                            </div>
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-muted)' }}>
-                            <span>Self Rating: {app.self_rating} Stars</span>
-                            {app.principal_rating && <span style={{ color: 'var(--accent-purple)', fontWeight: 700 }}>Principal Evaluated: {app.principal_rating} Stars</span>}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-muted)' }}>
+                              <span>Principal Evaluation rating: {app.principal_rating || 5} Stars</span>
+                              <span style={{ fontSize: 11 }}>📅 Submitted {new Date(app.created_at).toLocaleDateString()}</span>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
 
-                  {/* Sidebar evaluation panel */}
+                  {/* Sidebar forms panel */}
                   <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20, position: 'sticky', top: 20 }}>
-                    {!selectedAppraisal ? (
-                      <p style={{ margin: 0, textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
-                        Select a teacher self-evaluation card to submit principal comments and rating score.
-                      </p>
-                    ) : (
+                    {showCreateAppraisal ? (
                       <div>
-                        <h4 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Principal Comments & Evaluation</h4>
+                        <h4 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Create Performance Appraisal</h4>
+                        
                         <div style={{ marginBottom: 12 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Teacher:</span>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 2 }}>{selectedAppraisal.profiles?.name}</div>
+                          <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Select Teacher *</label>
+                          <select value={selectedTeacherId} onChange={e => setSelectedTeacherId(e.target.value)}
+                            style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
+                            <option value="">-- Choose Instructor --</option>
+                            {teachersList.map(t => <option key={t.id} value={t.id}>{t.name} ({t.auto_id})</option>)}
+                          </select>
                         </div>
 
                         <div style={{ marginBottom: 12 }}>
                           <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Principal Comment Remarks *</label>
-                          <textarea rows={4} value={principalComment} onChange={e => setPrincipalComment(e.target.value)} placeholder="Write teacher performance feedback remarks..."
+                          <textarea rows={4} value={principalComment} onChange={e => setPrincipalComment(e.target.value)} placeholder="Describe teacher's class performance, achievements, syllabus coverage, and observed results..."
                             style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', resize: 'none', boxSizing: 'border-box' }} />
                         </div>
 
                         <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Evaluation Rating *</label>
+                          <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}>Evaluation Rating Score *</label>
                           <select value={principalRating} onChange={e => setPrincipalRating(Number(e.target.value))}
                             style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }}>
                             {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} Stars</option>)}
@@ -977,13 +1027,47 @@ export default function PrincipalDashboard() {
 
                         {appraisalMsg && <div style={{ fontSize: 12, color: appraisalMsg.startsWith('Error') ? 'var(--accent-rose)' : 'var(--accent-emerald)', marginBottom: 12 }}>{appraisalMsg}</div>}
 
-                        <button onClick={submitPrincipalFeedback} disabled={savingAppraisal}
+                        <button onClick={createTeacherAppraisal} disabled={savingAppraisal}
                           style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: 'none', background: 'var(--accent-purple)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                          {savingAppraisal ? 'Saving...' : 'Submit Feedback'}
+                          {savingAppraisal ? 'Submitting...' : 'Submit Appraisal to Owner'}
                         </button>
+                      </div>
+                    ) : !selectedAppraisal ? (
+                      <p style={{ margin: 0, textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
+                        Select a teacher performance appraisal card to review Owner approval status and feedback.
+                      </p>
+                    ) : (
+                      <div>
+                        <h4 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Appraisal Details</h4>
+                        
+                        <div style={{ marginBottom: 12 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Teacher:</span>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 2 }}>{selectedAppraisal.profiles?.name}</div>
+                        </div>
+
+                        <div style={{ marginBottom: 12 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Principal Remarks & Score:</span>
+                          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '4px 0' }}>{selectedAppraisal.principal_comment || selectedAppraisal.objectives}</p>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-purple)', marginTop: 4 }}>★ {selectedAppraisal.principal_rating || 5} Stars Rating</div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 12, marginTop: 12 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Owner Approval Status:</span>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: selectedAppraisal.owner_status === 'fully_approved' ? 'var(--accent-emerald)' : selectedAppraisal.owner_status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-amber)', textTransform: 'capitalize', marginTop: 4 }}>
+                            {selectedAppraisal.owner_status ? selectedAppraisal.owner_status.replace('_', ' ') : 'Pending Decision'}
+                          </div>
+                        </div>
+
+                        {selectedAppraisal.owner_comment && (
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--accent-emerald)', display: 'block', marginBottom: 2 }}>Owner Remarks:</span>
+                            {selectedAppraisal.owner_comment}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
+
                 </div>
               )}
             </div>

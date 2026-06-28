@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { ClipboardEdit, BarChart3, BookOpen, CalendarDays, MessageCircle, ChevronRight, CalendarRange, TrendingUp } from "lucide-react";
+import { ClipboardEdit, BarChart3, BookOpen, CalendarDays, MessageCircle, ChevronRight, CalendarRange } from "lucide-react";
 import DashboardLayout from "../DashboardLayout";
 
 const supabase = createClient(
@@ -35,7 +35,6 @@ export default function TeacherDashboard() {
     { label: "Diary & Homework", icon: BookOpen, color: "var(--accent-indigo, #6366F1)", href: "/dashboard/teacher/diary" },
     { label: "View Timetable", icon: CalendarDays, color: "var(--accent-cyan, #06B6D4)", href: "/dashboard/teacher/timetable" },
     { label: "Request Leave", icon: CalendarRange, color: "var(--accent-rose, #F43F5E)", href: "/dashboard/teacher/leave" },
-    { label: "Performance Appraisal", icon: TrendingUp, color: "var(--accent-violet, #8B5CF6)", href: "/dashboard/teacher/appraisal" },
     { label: "Message Parents", icon: MessageCircle, color: "var(--accent-amber, #F59E0B)", href: "/dashboard/teacher/messages" },
   ];
 

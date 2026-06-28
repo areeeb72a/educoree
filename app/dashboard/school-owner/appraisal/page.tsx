@@ -144,21 +144,14 @@ export default function OwnerAppraisalPage() {
                       </span>
                     </div>
 
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", background: "rgba(255,255,255,0.01)", padding: 12, borderRadius: 8 }}>
-                      <strong>Objectives:</strong> {app.objectives}
+                     <div style={{ fontSize: 13, color: "var(--text-secondary)", background: "rgba(255,255,255,0.01)", padding: 12, borderRadius: 8 }}>
+                      <strong>Evaluation Remarks:</strong> {app.principal_comment || app.objectives}
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 11.5, color: "var(--text-muted)", borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10 }}>
-                      <div>Self Rating: <strong>{app.self_rating} Stars</strong></div>
-                      <div>Principal Rating: <strong>{app.principal_rating ? `${app.principal_rating} Stars` : 'Pending Principal Rating'}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-muted)", borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10 }}>
+                      <div>Principal Evaluation Rating: <strong>{app.principal_rating || 5} Stars</strong></div>
+                      <div>Date: <strong>{new Date(app.created_at).toLocaleDateString()}</strong></div>
                     </div>
-
-                    {app.principal_comment && (
-                      <div style={{ background: "rgba(124,58,237,0.04)", padding: 10, borderRadius: 8, fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                        <span style={{ fontWeight: 700, color: "var(--accent-purple)", display: "block", marginBottom: 2 }}>Principal Remarks:</span>
-                        {app.principal_comment}
-                      </div>
-                    )}
                   </div>
                 );
               })
