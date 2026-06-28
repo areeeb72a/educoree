@@ -40,16 +40,16 @@ export default function ParentMessagesPage() {
 
     const { data: kids } = await supabase
       .from("students")
-      .select("id, name, grade, section, branch_id, school_id")
+      .select("id, name, grade, section, branch_id, school_id, branches(name)")
       .eq("guardian_id", guardianData.id)
       .order("name");
     setChildren(kids || []);
 
     if (!kids || kids.length === 0) { setLoading(false); return; }
 
-    // For each child, find their teachers (via teacher_assignments matching grade/section/branch)
     let links: any[] = [];
     for (const child of kids) {
+      // 1. Fetch class teachers (via teacher_assignments matching grade/section/branch)
       const { data: assigns } = await supabase
         .from("teacher_assignments")
         .select("teacher_id, subject, is_incharge")
@@ -58,30 +58,58 @@ export default function ParentMessagesPage() {
         .eq("branch_id", child.branch_id);
 
       const teacherIds = Array.from(new Set((assigns || []).map((a: any) => a.teacher_id)));
-      if (teacherIds.length === 0) continue;
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from("profiles")
+          .select("id, name, auto_id")
+          .in("id", teacherIds);
 
-      const { data: teachers } = await supabase
+        (teachers || []).forEach((t: any) => {
+          const assignment = assigns?.find((a: any) => a.teacher_id === t.id);
+          links.push({
+            student: child,
+            teacher: t,
+            subject: assignment?.subject,
+            isIncharge: assignment?.is_incharge,
+            role: 'teacher'
+          });
+        });
+      }
+
+      // 2. Fetch Principal & Admin profiles for this child's school
+      const { data: staff } = await supabase
         .from("profiles")
-        .select("id, name, auto_id")
-        .in("id", teacherIds);
+        .select("id, name, role, auto_id")
+        .eq("school_id", child.school_id)
+        .in("role", ["principal", "admin"]);
 
-      (teachers || []).forEach((t: any) => {
-        const assignment = assigns?.find((a: any) => a.teacher_id === t.id);
-        links.push({ student: child, teacher: t, subject: assignment?.subject, isIncharge: assignment?.is_incharge });
+      (staff || []).forEach((s: any) => {
+        links.push({
+          student: child,
+          teacher: s,
+          subject: s.role === 'principal' ? "Principal" : "Admin/HR",
+          isIncharge: false,
+          role: s.role
+        });
       });
     }
 
-    // sort: class incharge first
-    links.sort((a, b) => (b.isIncharge ? 1 : 0) - (a.isIncharge ? 1 : 0));
+    // sort: class incharge first, then principal, then admin
+    links.sort((a, b) => {
+      const priorityA = a.isIncharge ? 3 : (a.role === 'principal' ? 2 : (a.role === 'admin' ? 1 : 0));
+      const priorityB = b.isIncharge ? 3 : (b.role === 'principal' ? 2 : (b.role === 'admin' ? 1 : 0));
+      return priorityB - priorityA;
+    });
 
     const studentIds = kids.map(k => k.id);
-    const teacherIds = Array.from(new Set(links.map(l => l.teacher.id)));
+    const staffIds = Array.from(new Set(links.map(l => l.teacher.id)));
+    
     const { data: threads } = await supabase
       .from("message_threads")
       .select("*")
       .eq("guardian_id", guardianData.id)
       .in("student_id", studentIds)
-      .in("teacher_id", teacherIds);
+      .in("teacher_id", staffIds);
 
     links = links.map(l => ({
       ...l,
@@ -174,7 +202,7 @@ export default function ParentMessagesPage() {
         {/* Sidebar list */}
         <div style={{ width: 280, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 12, borderBottom: '1px solid var(--border-subtle)' }}>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)' }}>Teacher Contacts</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)' }}>School Contacts</span>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading ? (
@@ -182,7 +210,7 @@ export default function ParentMessagesPage() {
             ) : !guardian ? (
               <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>Parent account not linked.</div>
             ) : teacherLinks.length === 0 ? (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>No instructors found.</div>
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>No contacts found.</div>
             ) : (
               teacherLinks.map((link, i) => {
                 const isActive = selectedLink?.teacher.id === link.teacher.id && selectedLink?.student.id === link.student.id;
@@ -201,7 +229,7 @@ export default function ParentMessagesPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link.teacher.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                        {link.isIncharge ? "Class Incharge" : link.subject} · {link.student.name}
+                        {link.role === 'principal' ? '👑 Principal' : link.role === 'admin' ? '🛡️ Admin/HR' : (link.isIncharge ? "Class Incharge" : link.subject)} &middot; {link.student.name} ({link.student.branches?.name || 'Main Branch'})
                       </div>
                     </div>
                     {link.thread?.parent_unread_count > 0 && (
@@ -221,7 +249,7 @@ export default function ParentMessagesPage() {
           {!selectedLink ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--text-muted)' }}>
               <MessageCircle size={40} style={{ marginBottom: 12, color: 'var(--text-muted)', opacity: 0.5 }} />
-              <p style={{ fontSize: 13 }}>Select a teacher contact from the sidebar to start chat</p>
+              <p style={{ fontSize: 13 }}>Select a contact from the sidebar to start chat</p>
             </div>
           ) : (
             <>
@@ -232,7 +260,7 @@ export default function ParentMessagesPage() {
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedLink.teacher.name}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {selectedLink.isIncharge ? "Class Incharge" : selectedLink.subject} · About {selectedLink.student.name}
+                    {selectedLink.role === 'principal' ? '👑 Principal' : selectedLink.role === 'admin' ? '🛡️ Admin/HR' : (selectedLink.isIncharge ? "Class Incharge" : selectedLink.subject)} · About {selectedLink.student.name} ({selectedLink.student.branches?.name || 'Main Branch'})
                   </div>
                 </div>
               </div>
