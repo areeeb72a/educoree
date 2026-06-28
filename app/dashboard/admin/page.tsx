@@ -29,7 +29,7 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', role: 'teacher', phone: '',
     father_name: '', address: '', blood_group: '', emergency_name: '',
-    emergency_phone: '', joining_date: '', photo_url: '',
+    emergency_phone: '', joining_date: new Date().toISOString().split('T')[0], photo_url: '',
     nic_number: '', subject_specialization: ''
   })
   const [formError, setFormError] = useState('')
@@ -78,7 +78,8 @@ export default function AdminDashboard() {
   const [showAddStudentForm, setShowAddStudentForm] = useState(false)
   const [addStudentForm, setAddStudentForm] = useState({
     name: '', dob: '', blood_group: '', grade: '1', section: 'A', roll_number: '', branch_id: '',
-    guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: ''
+    guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: '',
+    joining_date: new Date().toISOString().split('T')[0]
   })
   const [savingStudent, setSavingStudent] = useState(false)
   const [studentMsg, setStudentMsg] = useState('')
@@ -89,7 +90,7 @@ export default function AdminDashboard() {
     setStudentsLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, branches(name), guardians(name, gr_number, phone)')
+      .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, joining_date, branches(name), guardians(name, gr_number, phone)')
       .eq('school_id', profile.school_id)
       .order('grade')
       .order('name')
@@ -197,6 +198,7 @@ export default function AdminDashboard() {
           roll_number: addStudentForm.roll_number ? Number(addStudentForm.roll_number) : null,
           discount_pct: Number(addStudentForm.discount_pct || 0),
           photo_url: addStudentForm.photo_url || null,
+          joining_date: addStudentForm.joining_date || new Date().toISOString().split('T')[0],
           active: true,
           auto_id: `STUDENT-ST${Math.floor(10000 + Math.random() * 90000)}`
         })
@@ -206,7 +208,8 @@ export default function AdminDashboard() {
       setShowAddStudentForm(false)
       setAddStudentForm({
         name: '', dob: '', blood_group: '', grade: '1', section: 'A', roll_number: '', branch_id: '',
-        guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: ''
+        guardian_name: '', guardian_gr: '', guardian_phone: '', discount_pct: '0', photo_url: '',
+        joining_date: new Date().toISOString().split('T')[0]
       })
       fetchStudents()
     } catch (err: any) {
@@ -497,7 +500,7 @@ export default function AdminDashboard() {
     setFormData({
       name: '', email: '', password: '', role: 'teacher', phone: '',
       father_name: '', address: '', blood_group: '', emergency_name: '',
-      emergency_phone: '', joining_date: '', photo_url: '',
+      emergency_phone: '', joining_date: new Date().toISOString().split('T')[0], photo_url: '',
       nic_number: '', subject_specialization: ''
     })
     setFormError('')
@@ -1085,6 +1088,9 @@ export default function AdminDashboard() {
 
                     <input placeholder="Subject Specialization (e.g. Mathematics)" type="text" value={formData.subject_specialization} onChange={e => updateForm('subject_specialization', e.target.value)}
                       style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Joining Date" type="date" value={formData.joining_date} onChange={e => updateForm('joining_date', e.target.value)}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                       <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Profile Picture:</label>
@@ -1220,6 +1226,10 @@ export default function AdminDashboard() {
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>NIC Number</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewTeacher.nic_number || '—'}</div>
                       </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Joining Date</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399' }}>{viewTeacher.joining_date ? new Date(viewTeacher.joining_date).toLocaleDateString() : '—'}</div>
+                      </div>
                       <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Status</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: (viewTeacher.active ?? true) ? '#34D399' : '#F87171' }}>
@@ -1294,6 +1304,9 @@ export default function AdminDashboard() {
                       style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
 
                     <input placeholder="Guardian Phone Number" type="text" value={addStudentForm.guardian_phone} onChange={e => setAddStudentForm({ ...addStudentForm, guardian_phone: e.target.value })}
+                      style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
+
+                    <input placeholder="Admission / Joining Date" type="date" value={addStudentForm.joining_date} onChange={e => setAddStudentForm({ ...addStudentForm, joining_date: e.target.value })}
                       style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)' }} />
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: 'span 2', background: 'rgba(255,255,255,0.02)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
@@ -1466,13 +1479,17 @@ export default function AdminDashboard() {
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Branch</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewStudent.branches?.name || '—'}</div>
                       </div>
-                      <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
+                       <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Name & GR</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.name || '—'} (GR: {viewStudent.guardians?.gr_number || '—'})</div>
                       </div>
-                      <div style={{ gridColumn: 'span 2' }}>
+                      <div>
                         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Guardian Phone</span>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{viewStudent.guardians?.phone || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Admission / Joining Date</span>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#34D399' }}>{viewStudent.joining_date ? new Date(viewStudent.joining_date).toLocaleDateString() : '—'}</div>
                       </div>
                     </div>
 
