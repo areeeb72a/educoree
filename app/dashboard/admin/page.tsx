@@ -59,6 +59,15 @@ export default function AdminDashboard() {
   const [tickerMsg, setTickerMsg] = useState('')
 
   useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tab = params.get('tab')
+      if (tab) {
+        setActiveTab(tab)
+      }
+    }
+  }, [])
   useEffect(() => { if (activeTab === 'staff' && !staffLoaded) fetchStaff() }, [activeTab])
   useEffect(() => { if (activeTab === 'reset-password') fetchResetUsers() }, [activeTab, profile])
   useEffect(() => { if (activeTab === 'notice-ticker') fetchTicker() }, [activeTab, profile])
@@ -87,6 +96,13 @@ export default function AdminDashboard() {
   const [staffPage, setStaffPage] = useState(1)
   const [studentPage, setStudentPage] = useState(1)
   const itemsPerPage = 10
+  const [importing, setImporting] = useState(false)
+  const [importLogs, setImportLogs] = useState<string[]>([])
+  const [importSuccess, setImportSuccess] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importTarget, setImportTarget] = useState<'staff' | 'students'>('staff')
+  const [csvTextContent, setCsvTextContent] = useState('')
+  const [csvFileName, setCsvFileName] = useState('')
 
   useEffect(() => {
     setStaffPage(1)
@@ -118,6 +134,284 @@ export default function AdminDashboard() {
       .eq('id', student.id)
     if (!error) {
       setStudentsList(prev => prev.map(s => s.id === student.id ? { ...s, active: nextVal } : s))
+    }
+  }
+
+  async function downloadStaffCSV() {
+    if (!profile?.school_id) return
+    const { data: staff, error } = await supabase
+      .from('profiles')
+      .select('name, role, email, phone, joining_date, nic_number, subject_specialization, auto_id, active')
+      .eq('school_id', profile.school_id)
+      .neq('role', 'student')
+      .order('name')
+    if (error) { alert('Failed to fetch staff data: ' + error.message); return }
+
+    const headers = ['name', 'email', 'role', 'phone', 'joining_date', 'nic_number', 'subject_specialization', 'auto_id', 'active']
+    const csvRows = [headers.join(',')]
+
+    for (const row of (staff || [])) {
+      const values = headers.map(header => {
+        const val = (row as any)[header] === null || (row as any)[header] === undefined ? '' : String((row as any)[header])
+        const escaped = val.replace(/"/g, '""')
+        return `"${escaped}"`
+      })
+      csvRows.push(values.join(','))
+    }
+
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `educore_staff_roster_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  async function downloadStudentsCSV() {
+    if (!profile?.school_id) return
+    const { data: students, error } = await supabase
+      .from('students')
+      .select('name, auto_id, roll_number, grade, section, joining_date, active, guardians(name, gr_number, phone), blood_group, discount_pct')
+      .eq('school_id', profile.school_id)
+      .order('grade')
+      .order('name')
+    if (error) { alert('Failed to fetch students data: ' + error.message); return }
+
+    const headers = ['name', 'auto_id', 'roll_number', 'grade', 'section', 'joining_date', 'active', 'guardian_name', 'guardian_gr', 'guardian_phone', 'blood_group', 'discount_pct']
+    const csvRows = [headers.join(',')]
+
+    for (const row of (students || [])) {
+      const r = row as any
+      const rowData: Record<string, any> = {
+        name: r.name,
+        auto_id: r.auto_id,
+        roll_number: r.roll_number,
+        grade: r.grade,
+        section: r.section,
+        joining_date: r.joining_date,
+        active: r.active,
+        guardian_name: (Array.isArray(r.guardians) ? r.guardians[0]?.name : r.guardians?.name) || '',
+        guardian_gr: (Array.isArray(r.guardians) ? r.guardians[0]?.gr_number : r.guardians?.gr_number) || '',
+        guardian_phone: (Array.isArray(r.guardians) ? r.guardians[0]?.phone : r.guardians?.phone) || '',
+        blood_group: r.blood_group || '',
+        discount_pct: r.discount_pct || 0
+      }
+
+      const values = headers.map(header => {
+        const val = rowData[header] === null || rowData[header] === undefined ? '' : String(rowData[header])
+        const escaped = val.replace(/"/g, '""')
+        return `"${escaped}"`
+      })
+      csvRows.push(values.join(','))
+    }
+
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `educore_student_roster_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function downloadCSVTemplate(target: 'staff' | 'students') {
+    let headers = ''
+    let sample = ''
+    if (target === 'staff') {
+      headers = 'name,email,role,phone,joining_date,nic_number,subject_specialization'
+      sample = 'Fatima Ali,fatima.ali@school.edu,teacher,0321-1234567,2026-06-29,42101-1234567-1,Science\nAhmed Shah,ahmed.shah@school.edu,accounts,0312-9876543,2026-06-29,42101-9876543-1,Mathematics'
+    } else {
+      headers = 'name,grade,section,roll_number,guardian_name,guardian_gr,guardian_phone,blood_group,discount_pct'
+      sample = 'Abubakar Malik,1,A,1,Malik Riaz,GR-1002,0300-1110001,O+,10\nAiman Fatima,1,A,2,Zahid Hussain,GR-1003,0300-1110002,A-,0'
+    }
+
+    const blob = new Blob([headers + '\n' + sample], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `educore_${target}_template.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function parseCSV(text: string) {
+    const lines = text.split(/\r?\n/)
+    if (lines.length === 0 || !lines[0].trim()) return []
+
+    const splitCSVLine = (line: string) => {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      result.push(current.trim())
+      return result.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"'))
+    }
+
+    const headers = splitCSVLine(lines[0])
+    const rows = []
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]
+      if (!line.trim()) continue
+      const values = splitCSVLine(line)
+      const row: Record<string, string> = {}
+      headers.forEach((header, index) => {
+        if (header) {
+          row[header] = values[index] || ''
+        }
+      })
+      rows.push(row)
+    }
+    return rows
+  }
+
+  async function handleCSVImport(csvText: string, target: 'staff' | 'students') {
+    if (!profile?.school_id) return
+    setImporting(true)
+    setImportLogs([])
+    setImportSuccess('')
+    setImportError('')
+
+    const rows = parseCSV(csvText)
+    if (rows.length === 0) {
+      setImportError('Error: CSV file contains no valid rows or invalid headers.')
+      setImporting(false)
+      return
+    }
+
+    setImportLogs(prev => [...prev, `Found ${rows.length} records. Beginning database sync...`])
+
+    let successCount = 0
+    let failureCount = 0
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const name = row.name || ''
+
+      if (!name) {
+        setImportLogs(prev => [...prev, `❌ Row ${i + 2}: Name is missing. Skipping.`])
+        failureCount++
+        continue
+      }
+
+      try {
+        if (target === 'staff') {
+          const email = row.email || ''
+          const role = row.role || 'teacher'
+          
+          if (!email) {
+            setImportLogs(prev => [...prev, `❌ Row ${i + 2}: Email is missing for ${name}. Skipping.`])
+            failureCount++
+            continue
+          }
+
+          setImportLogs(prev => [...prev, `⏳ Importing ${name} (${email})...`])
+
+          const res = await fetch('/api/admin/create-staff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email.trim(),
+              password: `EduCore${Math.floor(100000 + Math.random() * 900000)}`,
+              name: name.trim(),
+              role: role.trim(),
+              school_id: profile.school_id,
+              branch_id: profile.branch_id,
+              phone: row.phone || null,
+              joining_date: row.joining_date || new Date().toISOString().split('T')[0],
+              nic_number: row.nic_number || null,
+              subject_specialization: row.subject_specialization || null
+            })
+          })
+
+          const data = await res.json()
+          if (!res.ok) {
+            throw new Error(data.error || 'Server error')
+          }
+
+          setImportLogs(prev => [...prev, `✓ Imported ${name} as ${role}. (Auto ID: ${data.profile?.auto_id})`])
+          successCount++
+        } else {
+          setImportLogs(prev => [...prev, `⏳ Importing student ${name}...`])
+
+          const guardianName = row.guardian_name || `${name}'s Guardian`
+          const guardianGr = row.guardian_gr || `GR-${Math.floor(1000 + Math.random() * 9000)}`
+          const guardianPhone = row.guardian_phone || null
+
+          const { data: guardian, error: gErr } = await supabase
+            .from('guardians')
+            .insert({
+              school_id: profile.school_id,
+              name: guardianName,
+              gr_number: guardianGr,
+              phone: guardianPhone
+            })
+            .select()
+            .single()
+          
+          if (gErr) throw gErr
+
+          const { data: student, error: sErr } = await supabase
+            .from('students')
+            .insert({
+              school_id: profile.school_id,
+              branch_id: profile.branch_id,
+              guardian_id: guardian.id,
+              name: name.trim(),
+              dob: row.dob || null,
+              blood_group: row.blood_group || null,
+              grade: row.grade || '1',
+              section: row.section || 'A',
+              roll_number: row.roll_number ? Number(row.roll_number) : null,
+              discount_pct: row.discount_pct ? Number(row.discount_pct) : 0,
+              joining_date: row.joining_date || new Date().toISOString().split('T')[0],
+              active: true,
+              auto_id: `STUDENT-ST${Math.floor(10000 + Math.random() * 90000)}`
+            })
+            .select()
+            .single()
+
+          if (sErr) throw sErr
+
+          setImportLogs(prev => [...prev, `✓ Enrolled student ${name} in Grade ${row.grade || '1'}-${row.section || 'A'}. (Auto ID: ${student.auto_id})`])
+          successCount++
+        }
+      } catch (err: any) {
+        setImportLogs(prev => [...prev, `❌ Row ${i + 2}: Error importing ${name} - ${err.message}`])
+        failureCount++
+      }
+
+      await new Promise(r => setTimeout(r, 80))
+    }
+
+    setImportLogs(prev => [...prev, `=== SYNC REPORT: ${successCount} successfully imported, ${failureCount} failed. ===`])
+    if (successCount > 0) {
+      setImportSuccess(`✓ CSV data import completed: ${successCount} records synced!`)
+    } else {
+      setImportError('No records were imported due to row errors.')
+    }
+    setImporting(false)
+    
+    if (target === 'staff') {
+      fetchStaff()
+    } else {
+      fetchStudents()
     }
   }
 
@@ -1206,7 +1500,7 @@ export default function AdminDashboard() {
     }
     setLoading(false)
   }
-  const tabs = ['overview', 'staff', 'students', 'exams', 'attendance', 'timesheet', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker']
+  const tabs = ['overview', 'staff', 'students', 'exams', 'attendance', 'timesheet', 'leave', 'recruitment', 'payroll', 'reset-password', 'notice-ticker', 'import-export']
   const todayPct = stats.totalStaff ? Math.round((stats.presentToday / stats.totalStaff) * 100) : 0
 
   return (
@@ -1232,7 +1526,7 @@ export default function AdminDashboard() {
               borderBottom: activeTab === tab ? '3px solid var(--accent-purple)' : '3px solid transparent',
               transition: 'all 0.2s', textTransform: 'capitalize', whiteSpace: 'nowrap'
             }}>
-            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab === 'exams' ? '📝 Exams' : tab === 'timesheet' ? '📅 Timesheet' : tab}
+            {tab === 'reset-password' ? '🔑 Reset Password' : tab === 'notice-ticker' ? '📣 Notice Ticker' : tab === 'exams' ? '📝 Exams' : tab === 'timesheet' ? '📅 Timesheet' : tab === 'import-export' ? '🔄 CSV Import/Export' : tab}
           </button>
         ))}
       </div>
@@ -2919,6 +3213,156 @@ export default function AdminDashboard() {
               >
                 {savingTicker ? '⏳ Telecasting...' : '📣 Telecast Ticker Globally'}
               </button>
+            </div>
+          )}
+
+          {activeTab === 'import-export' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                {/* Export Card */}
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>📤 Export Roster Records</h3>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                    Download the current active directories of staff members and students to local CSV files.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <button
+                      onClick={downloadStaffCSV}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.18s ease'
+                      }}
+                    >
+                      <span>👥 Download Faculty & Staff (CSV)</span>
+                      <span>⬇️</span>
+                    </button>
+
+                    <button
+                      onClick={downloadStudentsCSV}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.18s ease'
+                      }}
+                    >
+                      <span>🎓 Download Student Directory (CSV)</span>
+                      <span>⬇️</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Import Card */}
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 16, color: 'var(--text-primary)', fontWeight: 700 }}>📥 Bulk Import Roster</h3>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                    Upload lists of staff members or students to register them into the database in bulk.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Import Target</label>
+                      <select
+                        value={importTarget}
+                        onChange={e => setImportTarget(e.target.value as any)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+                      >
+                        <option value="staff">👥 Faculty / Staff Members</option>
+                        <option value="students">🎓 Students Directory</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={() => downloadCSVTemplate(importTarget)}
+                        className="row-btn"
+                        style={{ padding: '8px 12px', background: 'transparent', border: '1px solid var(--border-subtle)', fontSize: 12, fontWeight: 700, color: 'var(--accent-cyan)' }}
+                      >
+                        📄 Download Template CSV
+                      </button>
+                    </div>
+
+                    <div style={{ border: '1px dashed var(--border-subtle)', borderRadius: 10, padding: '16px 12px', textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            setCsvFileName(file.name)
+                            const reader = new FileReader()
+                            reader.onload = () => setCsvTextContent(reader.result as string)
+                            reader.readAsText(file)
+                          }
+                        }}
+                        style={{ display: 'none' }}
+                        id="csv-file-input"
+                      />
+                      <label htmlFor="csv-file-input" style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', display: 'block' }}>
+                        {csvFileName ? `📂 Selected: ${csvFileName}` : '📂 Click here to select a .csv file'}
+                      </label>
+                    </div>
+
+                    {importSuccess && (
+                      <div style={{ color: 'var(--accent-emerald)', fontSize: 12.5, fontWeight: 600 }}>{importSuccess}</div>
+                    )}
+                    {importError && (
+                      <div style={{ color: 'var(--accent-rose)', fontSize: 12.5, fontWeight: 600 }}>{importError}</div>
+                    )}
+
+                    <button
+                      onClick={() => handleCSVImport(csvTextContent, importTarget)}
+                      disabled={importing || !csvTextContent}
+                      style={{
+                        padding: '12px',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-indigo))',
+                        color: '#fff',
+                        fontWeight: 750,
+                        cursor: (importing || !csvTextContent) ? 'not-allowed' : 'pointer',
+                        border: 'none',
+                        opacity: (importing || !csvTextContent) ? 0.6 : 1,
+                        fontSize: 13
+                      }}
+                    >
+                      {importing ? '⏳ Importing Roster...' : '⚡ Start Bulk Sync'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Console Logs */}
+              {importLogs.length > 0 && (
+                <div className="card" style={{ background: '#070614', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20 }}>
+                  <h4 style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    CSV Sync Console Logs
+                  </h4>
+                  <div style={{ height: 200, overflowY: 'auto', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, padding: 12, fontFamily: 'monospace', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6, color: '#94A3B8' }}>
+                    {importLogs.map((log, idx) => (
+                      <div key={idx}>{log}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

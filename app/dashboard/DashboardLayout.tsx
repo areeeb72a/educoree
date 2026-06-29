@@ -182,7 +182,8 @@ export default function DashboardLayout({
           { label: "Teachers", href: "/dashboard/school-owner/teachers", icon: Users },
           { label: "Students", href: "/dashboard/school-owner/students", icon: Users },
           { label: "Fee Overview", href: "/dashboard/school-owner/fees", icon: DollarSign },
-          { label: "Attendance Overview", href: "/dashboard/school-owner/attendance-overview", icon: ClipboardList }
+          { label: "Attendance Overview", href: "/dashboard/school-owner/attendance-overview", icon: ClipboardList },
+          { label: "Emergency Backup", href: "/dashboard/school-owner/backup", icon: Database }
         ]
       }
     ],
@@ -199,7 +200,8 @@ export default function DashboardLayout({
       {
         section: "Overview",
         items: [
-          { label: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard }
+          { label: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+          { label: "CSV Import / Export", href: "/dashboard/admin?tab=import-export", icon: Database }
         ]
       }
     ],
