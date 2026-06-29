@@ -245,7 +245,7 @@ export default function LoginPage() {
             {resetLinkSent ? (
               <div>
                 <div style={{ fontSize: 13, color: '#34D399', marginBottom: 20, lineHeight: 1.5 }}>
-                  📬 Password reset link aapke email address par send kar di gayi hai! Apne inbox (ya spam folder) ko check karen.
+                  📬 A password reset link has been sent to your email address! Please check your inbox (or spam folder).
                 </div>
                 <button
                   onClick={() => { setShowForgotMsg(false); setResetLinkSent(false); setForgotEmail(''); setForgotError('') }}
@@ -257,7 +257,7 @@ export default function LoginPage() {
             ) : (
               <div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16, lineHeight: 1.5 }}>
-                  Apna registered email enter karen, hum aapko password reset karne ka secure link send karenge.
+                  Enter your registered email address, and we will send you a secure link to reset your password.
                 </div>
                 
                 <input
