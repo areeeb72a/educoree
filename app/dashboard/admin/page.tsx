@@ -84,6 +84,17 @@ export default function AdminDashboard() {
   const [savingStudent, setSavingStudent] = useState(false)
   const [studentMsg, setStudentMsg] = useState('')
   const [uploadingStudentPhoto, setUploadingStudentPhoto] = useState(false)
+  const [staffPage, setStaffPage] = useState(1)
+  const [studentPage, setStudentPage] = useState(1)
+  const itemsPerPage = 10
+
+  useEffect(() => {
+    setStaffPage(1)
+  }, [staffSearch])
+
+  useEffect(() => {
+    setStudentPage(1)
+  }, [studentsSearch, studentGradeFilter])
 
   async function fetchStudents() {
     if (!profile?.school_id) return
@@ -547,6 +558,20 @@ export default function AdminDashboard() {
   const filteredStaff = staffList.filter(s =>
     !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.auto_id?.toLowerCase().includes(staffSearch.toLowerCase())
   )
+
+  const filteredStudents = studentsList
+    .filter(s => !studentsSearch || s.name?.toLowerCase().includes(studentsSearch.toLowerCase()) || s.auto_id?.toLowerCase().includes(studentsSearch.toLowerCase()))
+    .filter(s => studentGradeFilter === 'all' || s.grade === studentGradeFilter)
+
+  const totalStaffPages = Math.ceil(filteredStaff.length / itemsPerPage)
+  const staffStartIndex = (staffPage - 1) * itemsPerPage
+  const staffEndIndex = Math.min(staffStartIndex + itemsPerPage, filteredStaff.length)
+  const paginatedStaff = filteredStaff.slice(staffStartIndex, staffEndIndex)
+
+  const totalStudentPages = Math.ceil(filteredStudents.length / itemsPerPage)
+  const studentStartIndex = (studentPage - 1) * itemsPerPage
+  const studentEndIndex = Math.min(studentStartIndex + itemsPerPage, filteredStudents.length)
+  const paginatedStudents = filteredStudents.slice(studentStartIndex, studentEndIndex)
 
   // staff attendance tab state
   const [attView, setAttView] = useState<'mark' | 'history'>('mark')
@@ -1340,40 +1365,63 @@ export default function AdminDashboard() {
                 ) : filteredStaff.length === 0 ? (
                   <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No faculty matching criteria.</p>
                 ) : (
-                  <div className="table-wrap">
-                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Role</th>
-                          <th>Contact</th>
-                          <th>Faculty ID</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredStaff.map(s => (
-                          <tr key={s.id}>
-                            <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
-                            <td style={{ textTransform: 'capitalize' }}>{s.role}</td>
-                            <td>{s.phone || '—'}</td>
-                            <td style={{ fontFamily: 'monospace' }}>{s.auto_id || '—'}</td>
-                            <td>
-                              <span className={`status-badge ${s.active ? 'active' : 'inactive'}`}>
-                                {s.active ? 'Active' : 'Inactive'}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <button onClick={() => setViewTeacher(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>
-                                View Card
-                              </button>
-                            </td>
+                  <>
+                    <div className="table-container style-scrollbar" style={{ maxHeight: '450px', overflowY: 'auto', overflowX: 'auto' }}>
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Contact</th>
+                            <th>Faculty ID</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {paginatedStaff.map(s => (
+                            <tr key={s.id}>
+                              <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
+                              <td style={{ textTransform: 'capitalize' }}>{s.role}</td>
+                              <td>{s.phone || '—'}</td>
+                              <td style={{ fontFamily: 'monospace' }}>{s.auto_id || '—'}</td>
+                              <td>
+                                <span className={`status-badge ${s.active ? 'active' : 'inactive'}`}>
+                                  {s.active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button onClick={() => setViewTeacher(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>
+                                  View Card
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-muted)', paddingLeft: 16, paddingRight: 16, paddingBottom: 16 }}>
+                      <span>Showing {filteredStaff.length === 0 ? 0 : staffStartIndex + 1}-{staffEndIndex} of {filteredStaff.length} Staff</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button 
+                          onClick={() => setStaffPage(prev => Math.max(prev - 1, 1))} 
+                          disabled={staffPage === 1}
+                          className="row-btn"
+                          style={{ opacity: staffPage === 1 ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                        >
+                          Prev
+                        </button>
+                        <button 
+                          onClick={() => setStaffPage(prev => Math.min(prev + 1, totalStaffPages))} 
+                          disabled={staffPage === totalStaffPages || totalStaffPages === 0}
+                          className="row-btn"
+                          style={{ opacity: (staffPage === totalStaffPages || totalStaffPages === 0) ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -1576,24 +1624,22 @@ export default function AdminDashboard() {
                 ) : studentsList.length === 0 ? (
                   <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students enrolled.</p>
                 ) : (
-                  <div className="table-wrap">
-                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          <th>Student Name</th>
-                          <th>ID</th>
-                          <th>Class</th>
-                          <th>Guardian Name</th>
-                          <th>Guardian Phone</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentsList
-                          .filter(s => !studentsSearch || s.name?.toLowerCase().includes(studentsSearch.toLowerCase()) || s.auto_id?.toLowerCase().includes(studentsSearch.toLowerCase()))
-                          .filter(s => studentGradeFilter === 'all' || s.grade === studentGradeFilter)
-                          .map(s => (
+                  <>
+                    <div className="table-container style-scrollbar" style={{ maxHeight: '450px', overflowY: 'auto', overflowX: 'auto' }}>
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th>Student Name</th>
+                            <th>ID</th>
+                            <th>Class</th>
+                            <th>Guardian Name</th>
+                            <th>Guardian Phone</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedStudents.map(s => (
                             <tr key={s.id}>
                               <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</td>
                               <td style={{ fontFamily: 'monospace' }}>{s.auto_id || '—'}</td>
@@ -1632,9 +1678,31 @@ export default function AdminDashboard() {
                               </td>
                             </tr>
                           ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-muted)', paddingLeft: 16, paddingRight: 16, paddingBottom: 16 }}>
+                      <span>Showing {filteredStudents.length === 0 ? 0 : studentStartIndex + 1}-{studentEndIndex} of {filteredStudents.length} Students</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button 
+                          onClick={() => setStudentPage(prev => Math.max(prev - 1, 1))} 
+                          disabled={studentPage === 1}
+                          className="row-btn"
+                          style={{ opacity: studentPage === 1 ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                        >
+                          Prev
+                        </button>
+                        <button 
+                          onClick={() => setStudentPage(prev => Math.min(prev + 1, totalStudentPages))} 
+                          disabled={studentPage === totalStudentPages || totalStudentPages === 0}
+                          className="row-btn"
+                          style={{ opacity: (studentPage === totalStudentPages || totalStudentPages === 0) ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
 

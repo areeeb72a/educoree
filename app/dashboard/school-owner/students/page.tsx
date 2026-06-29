@@ -48,6 +48,12 @@ export default function StudentsManagement() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, branchFilter, gradeFilter])
 
   useEffect(() => { fetchData() }, [])
 
@@ -161,6 +167,11 @@ export default function StudentsManagement() {
     return matchSearch && matchBranch && matchGrade
   })
 
+  const totalPages = Math.ceil(filtered.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = Math.min(startIndex + itemsPerPage, filtered.length)
+  const paginated = filtered.slice(startIndex, endIndex)
+
   return (
     <DashboardLayout
       role="school-owner"
@@ -266,61 +277,84 @@ export default function StudentsManagement() {
         ) : filtered.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students match database filters.</div>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th>Student Info</th>
-                  <th>ID / Roll</th>
-                  <th>Grade & Sec</th>
-                  <th>Guardian</th>
-                  <th>Branch</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(s => (
-                  <tr key={s.id}>
-                    <td>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</div>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                      {s.auto_id || '—'} {s.roll_number !== null ? `(Roll: ${s.roll_number})` : ''}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                        Grade {s.grade || '—'} - {s.section || 'A'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{s.guardians?.name || '—'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>GR: {s.guardians?.gr_number || '—'}</div>
-                    </td>
-                    <td>{s.branches?.name || '—'}</td>
-                    <td>
-                      <span className={`status-badge ${(s.active ?? true) ? 'active' : 'inactive'}`}>
-                        {(s.active ?? true) ? 'Active' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => setViewStudent(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>View</button>
-                        <button onClick={() => openEdit(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>Edit</button>
-                        <button onClick={() => toggleActive(s)} className="row-btn" style={{
-                          background: (s.active ?? true) ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
-                          color: (s.active ?? true) ? 'var(--accent-rose)' : 'var(--accent-emerald)',
-                          border: 'none'
-                        }}>
-                          {(s.active ?? true) ? 'Disable' : 'Enable'}
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="table-container style-scrollbar" style={{ maxHeight: '450px', overflowY: 'auto', overflowX: 'auto' }}>
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th>Student Info</th>
+                    <th>ID / Roll</th>
+                    <th>Grade & Sec</th>
+                    <th>Guardian</th>
+                    <th>Branch</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginated.map(s => (
+                    <tr key={s.id}>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{s.name}</div>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                        {s.auto_id || '—'} {s.roll_number !== null ? `(Roll: ${s.roll_number})` : ''}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                          Grade {s.grade || '—'} - {s.section || 'A'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{s.guardians?.name || '—'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>GR: {s.guardians?.gr_number || '—'}</div>
+                      </td>
+                      <td>{s.branches?.name || '—'}</td>
+                      <td>
+                        <span className={`status-badge ${(s.active ?? true) ? 'active' : 'inactive'}`}>
+                          {(s.active ?? true) ? 'Active' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => setViewStudent(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>View</button>
+                          <button onClick={() => openEdit(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>Edit</button>
+                          <button onClick={() => toggleActive(s)} className="row-btn" style={{
+                            background: (s.active ?? true) ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
+                            color: (s.active ?? true) ? 'var(--accent-rose)' : 'var(--accent-emerald)',
+                            border: 'none'
+                          }}>
+                            {(s.active ?? true) ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text-muted)', paddingLeft: 16, paddingRight: 16, paddingBottom: 16 }}>
+              <span>Showing {filtered.length === 0 ? 0 : startIndex + 1}-{endIndex} of {filtered.length} Students</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                  disabled={currentPage === 1}
+                  className="row-btn"
+                  style={{ opacity: currentPage === 1 ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                >
+                  Prev
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="row-btn"
+                  style={{ opacity: (currentPage === totalPages || totalPages === 0) ? 0.5 : 1, background: 'transparent', border: '1px solid var(--border-subtle)' }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
