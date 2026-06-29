@@ -441,7 +441,7 @@ export default function AdminDashboard() {
         setResettingUser(false)
         return
       }
-      setResetSuccess(`Password successfully reset ho gaya for ${selectedResetUser.name}!`)
+      setResetSuccess(`Password successfully reset for ${selectedResetUser.name}!`)
       setNewResetPassword('')
       setTimeout(() => { setSelectedResetUser(null); setResetSuccess('') }, 2500)
     } catch (err: any) {
@@ -528,11 +528,11 @@ export default function AdminDashboard() {
       const result = await res.json()
 
       if (!res.ok) {
-        setFormError(result.error || 'Kuch ghalat ho gaya')
+        setFormError(result.error || 'Something went wrong')
         return
       }
 
-      setFormSuccess(`${formData.name} ka account ban gaya! Auto ID: ${result.profile.auto_id}`)
+      setFormSuccess(`Account created successfully for ${formData.name}! Auto ID: ${result.profile.auto_id}`)
       resetForm()
       setStaffLoaded(false)
       fetchStaff()
@@ -2740,7 +2740,7 @@ export default function AdminDashboard() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>Ticker Text (English and/or Urdu)</label>
                 <textarea
-                  placeholder="Enter scrolling notice here (Urdu text is fully supported, e.g. کل سکول بند رہے گا)..."
+                  placeholder="Enter scrolling notice here (e.g. School will be closed tomorrow)..."
                   value={tickerText}
                   onChange={e => setTickerText(e.target.value)}
                   style={{ width: '100%', height: 90, padding: '10px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 10, fontSize: 13, color: 'var(--text-primary)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}

@@ -37,20 +37,20 @@ export default function LoginPage() {
       if (error) throw error
       setResetLinkSent(true)
     } catch (err: any) {
-      setForgotError(err.message || 'Link send karne mein masla ho gaya')
+      setForgotError(err.message || 'Failed to send reset link')
     }
     setSendingResetLink(false)
   }
 
   async function handleLogin() {
     if (!email.trim() || !password) {
-      setError('Please email aur password enter karen')
+      setError('Please enter email and password')
       return
     }
 
     const lowerEmail = email.trim().toLowerCase()
     if (!lowerEmail.endsWith('@educore.pk') && !lowerEmail.endsWith('@fza.pk')) {
-      setError('Ghalat email domain! Sirf @educore.pk ya @fza.pk domains allowed hain.')
+      setError('Invalid email domain! Only @educore.pk or @fza.pk domains are allowed.')
       return
     }
 

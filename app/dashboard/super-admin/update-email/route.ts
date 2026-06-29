@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const { userId, newEmail } = body
 
     if (!userId || !newEmail) {
-      return NextResponse.json({ error: 'User ID aur naya email zaroori hain' }, { status: 400 })
+      return NextResponse.json({ error: 'User ID and new email are required' }, { status: 400 })
     }
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {

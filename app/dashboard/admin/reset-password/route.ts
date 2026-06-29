@@ -12,10 +12,10 @@ export async function POST(req: NextRequest) {
     const { userId, newPassword } = body
 
     if (!userId || !newPassword) {
-      return NextResponse.json({ error: 'User ID aur password zaroori hain' }, { status: 400 })
+      return NextResponse.json({ error: 'User ID and password are required' }, { status: 400 })
     }
     if (newPassword.length < 6) {
-      return NextResponse.json({ error: 'Password kam az kam 6 characters ka ho' }, { status: 400 })
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
     }
 
     // Update the auth password

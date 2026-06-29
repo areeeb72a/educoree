@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get('userId')
     if (!userId) {
-      return NextResponse.json({ error: 'userId zaroori hai' }, { status: 400 })
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
     const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId)

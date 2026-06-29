@@ -59,7 +59,7 @@ export default function ChangePasswordPage() {
       const target = ROLE_ROUTES[profile?.role || ''] || '/'
       window.location.href = target
     } catch (err: any) {
-      setError(err.message || 'Kuch ghalat ho gaya')
+      setError(err.message || 'Something went wrong')
       setSaving(false)
     }
   }

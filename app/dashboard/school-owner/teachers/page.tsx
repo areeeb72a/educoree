@@ -92,7 +92,7 @@ export default function TeachersManagement() {
         setResettingUser(false)
         return
       }
-      setResetSuccess(`Password successfully reset ho gaya for ${selectedResetUser.name}!`)
+      setResetSuccess(`Password successfully reset for ${selectedResetUser.name}!`)
       setNewResetPassword('')
       setTimeout(() => { setSelectedResetUser(null); setResetSuccess('') }, 2500)
     } catch (err: any) {

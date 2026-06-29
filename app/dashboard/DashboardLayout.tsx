@@ -91,7 +91,7 @@ export default function DashboardLayout({
       if (user) {
         await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
       }
-      setPwSuccess("Password successfully update ho gaya!");
+      setPwSuccess("Password successfully updated!");
       setNewPw("");
     } catch (err: any) {
       setPwError(err.message || "Password change failed.");

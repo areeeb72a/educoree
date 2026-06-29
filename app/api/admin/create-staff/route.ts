@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     } = body
 
     if (!email || !password || !name || !role) {
-      return NextResponse.json({ error: 'Email, password, name, aur role zaroori hain' }, { status: 400 })
+      return NextResponse.json({ error: 'Email, password, name, and role are required' }, { status: 400 })
     }
 
     // 1. Create the auth user

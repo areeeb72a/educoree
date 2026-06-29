@@ -134,7 +134,7 @@ export default function SchoolDetailPage() {
         setResettingPwd(false)
         return
       }
-      setResetMsg('Password reset ho gaya! Owner ko bata den, login ke baad usay naya password set karna hoga.')
+      setResetMsg('Password reset successful! Notify the owner to set a new password upon logging in.')
       setNewOwnerPassword('')
       setTimeout(() => { setShowResetPwd(false); setResetMsg('') }, 3000)
     } catch (err: any) {
@@ -204,12 +204,12 @@ export default function SchoolDetailPage() {
 
   async function handleCreateOwner() {
     setCreateOwnerMsg('')
-    if (!newOwnerForm.name.trim() || !newOwnerForm.email.trim() || !newOwnerForm.password) {
-      setCreateOwnerMsg('Error: Naam, email, aur password zaroori hain')
+     if (!newOwnerForm.name.trim() || !newOwnerForm.email.trim() || !newOwnerForm.password) {
+      setCreateOwnerMsg('Error: Name, email, and password are required')
       return
     }
     if (newOwnerForm.password.length < 6) {
-      setCreateOwnerMsg('Error: Password kam az kam 6 characters ka ho')
+      setCreateOwnerMsg('Error: Password must be at least 6 characters')
       return
     }
     setCreatingOwner(true)
@@ -234,7 +234,7 @@ export default function SchoolDetailPage() {
       }
 
       await supabase.from('schools').update({ owner_id: result.profile.id }).eq('id', schoolId)
-      setCreateOwnerMsg('Owner ban gaya! ID: ' + result.profile.auto_id)
+      setCreateOwnerMsg('Owner created successfully! ID: ' + result.profile.auto_id)
       setNewOwnerForm({ name: '', email: '', password: '', phone: '' })
       await fetchData()
       setTimeout(() => { setShowCreateOwner(false); setCreateOwnerMsg('') }, 2500)
@@ -248,12 +248,12 @@ export default function SchoolDetailPage() {
     setBranchMsg('')
 
     if (branches.length >= school.max_branches) {
-      setBranchMsg(`Error: Aapke "${PLAN_TIERS[school.plan]?.label || school.plan}" plan mein sirf ${school.max_branches} branch${school.max_branches !== 1 ? 'es' : ''} allowed hain. Naya branch banane ke liye plan upgrade karen.`)
+      setBranchMsg(`Error: Your "${PLAN_TIERS[school.plan]?.label || school.plan}" plan only allows up to ${school.max_branches} branch${school.max_branches !== 1 ? 'es' : ''}. Please upgrade your plan to create a new branch.`)
       return
     }
 
     if (!branchName.trim() || !branchCode.trim()) {
-      setBranchMsg('Error: Branch name aur code zaroori hain')
+      setBranchMsg('Error: Branch name and code are required')
       return
     }
     setSavingBranch(true)
@@ -585,7 +585,7 @@ export default function SchoolDetailPage() {
           <button
             onClick={() => {
               if (branches.length >= school.max_branches) {
-                setBranchMsg(`Error: Aapke "${PLAN_TIERS[school.plan]?.label || school.plan}" plan mein sirf ${school.max_branches} branch${school.max_branches !== 1 ? 'es' : ''} allowed hain. Naya branch banane ke liye plan upgrade karen.`)
+                setBranchMsg(`Error: Your "${PLAN_TIERS[school.plan]?.label || school.plan}" plan only allows up to ${school.max_branches} branch${school.max_branches !== 1 ? 'es' : ''}. Please upgrade your plan to create a new branch.`)
                 setShowAddBranch(true)
                 return
               }
@@ -637,7 +637,7 @@ export default function SchoolDetailPage() {
         {branches.length === 0 ? (
           <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 40, textAlign: 'center', border: '1px solid var(--border-subtle)' }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🏢</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Koi branch nahi hai abhi.</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No branches found.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -673,7 +673,7 @@ export default function SchoolDetailPage() {
               </h3>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
-              Humne platform security ke liye **`admin@educore.pk`** par verification email send ki hai. 
+              We have sent a verification email to **`admin@educore.pk`** for platform security.
             </p>
             
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 14, marginBottom: 18 }}>
