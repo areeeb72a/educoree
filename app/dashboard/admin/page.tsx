@@ -2692,6 +2692,7 @@ export default function AdminDashboard() {
                           <th>Staff Applicant</th>
                           <th>Role</th>
                           <th>Dates Requested</th>
+                          <th>Type</th>
                           <th>Reason for Leave</th>
                           <th>Status</th>
                           <th style={{ textAlign: 'right' }}>Actions</th>
@@ -2705,6 +2706,14 @@ export default function AdminDashboard() {
                               <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{applicant?.name || '—'}</td>
                               <td style={{ textTransform: 'capitalize' }}>{applicant?.role || '—'}</td>
                               <td>{l.from_date || l.start_date} to {l.to_date || l.end_date} ({l.days || 1} {l.days === 1 ? 'day' : 'days'})</td>
+                              <td>
+                                <span style={{
+                                  fontSize: "11px", fontWeight: 700,
+                                  padding: "3px 8px", borderRadius: "6px",
+                                  background: l.leave_type === "Unpaid" ? "rgba(217,119,6,0.12)" : "rgba(124,58,237,0.12)",
+                                  color: l.leave_type === "Unpaid" ? "var(--accent-amber)" : "var(--accent-purple)"
+                                }}>{l.leave_type === "Unpaid" ? "Without Pay" : "Paid"}</span>
+                              </td>
                               <td>{l.reason}</td>
                               <td>
                                 <span className={`status-badge ${l.status === 'approved' ? 'active' : l.status === 'rejected' ? 'inactive' : 'pending'}`}>
