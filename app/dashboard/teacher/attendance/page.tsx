@@ -78,19 +78,31 @@ export default function TeacherAttendancePage() {
   }
 
   async function markStatus(studentId: string, status: string) {
+    if (!teacher?.id) {
+      alert("Error: Teacher session not loaded. Please try again.");
+      return;
+    }
     setSaving(studentId);
-    await supabase.from("attendance").upsert({
-      school_id: selected.school_id,
-      branch_id: selected.branch_id,
-      student_id: studentId,
-      grade: selected.grade,
-      section: selected.section,
-      date,
-      status,
-    }, { onConflict: "student_id,date" });
+    try {
+      const { error } = await supabase.from("attendance").upsert({
+        school_id: selected.school_id,
+        branch_id: selected.branch_id,
+        student_id: studentId,
+        teacher_id: teacher.id,
+        grade: selected.grade,
+        section: selected.section,
+        date,
+        status,
+      }, { onConflict: "student_id,date" });
 
-    setAttendanceMap(prev => ({ ...prev, [studentId]: status }));
-    setSaving(null);
+      if (error) throw error;
+
+      setAttendanceMap(prev => ({ ...prev, [studentId]: status }));
+    } catch (err: any) {
+      alert("Error saving attendance: " + (err.message || err));
+    } finally {
+      setSaving(null);
+    }
   }
 
   async function markAllPresent() {
@@ -161,12 +173,18 @@ export default function TeacherAttendancePage() {
 
           <div style={{ flex: 1 }} />
 
-          <button
-            onClick={markAllPresent}
-            style={{ padding: '10px 18px', borderRadius: 10, background: 'var(--accent-emerald)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          >
-            ✅ Mark All Present
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontSize: 12, color: 'var(--accent-emerald)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-emerald)', display: 'inline-block' }}></span>
+              ⚡ Auto-Save Enabled
+            </span>
+            <button
+              onClick={markAllPresent}
+              style={{ padding: '10px 18px', borderRadius: 10, background: 'var(--accent-emerald)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              ✅ Mark All Present
+            </button>
+          </div>
         </div>
       </div>
 
