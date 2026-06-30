@@ -2704,7 +2704,7 @@ export default function AdminDashboard() {
                             <tr key={l.id}>
                               <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{applicant?.name || '—'}</td>
                               <td style={{ textTransform: 'capitalize' }}>{applicant?.role || '—'}</td>
-                              <td>{l.start_date} to {l.end_date}</td>
+                              <td>{l.from_date || l.start_date} to {l.to_date || l.end_date} ({l.days || 1} {l.days === 1 ? 'day' : 'days'})</td>
                               <td>{l.reason}</td>
                               <td>
                                 <span className={`status-badge ${l.status === 'approved' ? 'active' : l.status === 'rejected' ? 'inactive' : 'pending'}`}>

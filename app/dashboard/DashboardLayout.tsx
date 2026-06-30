@@ -69,6 +69,7 @@ export default function DashboardLayout({
   const [schoolName, setSchoolName] = useState("");
   const [schoolLogo, setSchoolLogo] = useState("");
   const [ticker, setTicker] = useState<any>(null);
+  const [studentClassInfo, setStudentClassInfo] = useState<string>("");
 
   // Voluntary password change states
   const [newPw, setNewPw] = useState("");
@@ -124,6 +125,16 @@ export default function DashboardLayout({
           if (profile.schools) {
             setSchoolName(profile.schools.name || "");
             setSchoolLogo(profile.schools.logo_url || "");
+          }
+          if (profile.role === "student") {
+            const { data: stu } = await supabase
+              .from("students")
+              .select("grade, section")
+              .eq("user_id", user.id)
+              .maybeSingle();
+            if (stu) {
+              setStudentClassInfo(`Grade ${stu.grade}-${stu.section}`);
+            }
           }
           if (profile.school_id) {
             const { data: tickerData } = await supabase
@@ -928,15 +939,29 @@ export default function DashboardLayout({
               )}
               <div>
                 <div className="logo-text" style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>{finalSchoolName}</div>
-                <div className="logo-badge" style={{
-                  fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em",
-                  color: "var(--accent-purple)",
-                  background: selectedDesign === "clean-light" ? "rgba(124,58,237,0.08)" : "rgba(124,58,237,0.15)",
-                  border: "1px solid rgba(124,58,237,0.2)",
-                  padding: "2px 7px", borderRadius: "30px", marginTop: "2px",
-                  textTransform: "uppercase",
-                  width: "fit-content"
-                }}>{displayRoleName}</div>
+                <div style={{ display: "flex", gap: "4px", alignItems: "center", marginTop: "2px", flexWrap: "wrap" }}>
+                  <div className="logo-badge" style={{
+                    fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em",
+                    color: "var(--accent-purple)",
+                    background: selectedDesign === "clean-light" ? "rgba(124,58,237,0.08)" : "rgba(124,58,237,0.15)",
+                    border: "1px solid rgba(124,58,237,0.2)",
+                    padding: "2px 7px", borderRadius: "30px",
+                    textTransform: "uppercase",
+                    width: "fit-content"
+                  }}>{displayRoleName}</div>
+                  
+                  {studentClassInfo && (
+                    <div className="logo-badge" style={{
+                      fontSize: "9px", fontWeight: 700, letterSpacing: "0.05em",
+                      color: "var(--accent-cyan, #06B6D4)",
+                      background: "rgba(6,182,212,0.15)",
+                      border: "1px solid rgba(6,182,212,0.2)",
+                      padding: "2px 7px", borderRadius: "30px",
+                      textTransform: "uppercase",
+                      width: "fit-content"
+                    }}>{studentClassInfo}</div>
+                  )}
+                </div>
               </div>
               <button 
                 onClick={() => setSidebarOpen(false)}
@@ -1143,8 +1168,21 @@ export default function DashboardLayout({
                 ☰
               </button>
 
-              <div className="topbar-title" style={{ fontSize: "15px", fontWeight: "700", letterSpacing: "-0.01em", flex: 1 }}>
-                Dashboard <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "13px" }}>/ {displayRoleName}</span>
+              <div className="topbar-title" style={{ fontSize: "15px", fontWeight: "700", letterSpacing: "-0.01em", flex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>Dashboard</span>
+                <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "13px" }}>/ {displayRoleName}</span>
+                {studentClassInfo && (
+                  <span style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "var(--accent-cyan, #06B6D4)",
+                    background: "rgba(6,182,212,0.12)",
+                    border: "1px solid rgba(6,182,212,0.18)",
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    textTransform: "uppercase"
+                  }}>{studentClassInfo}</span>
+                )}
               </div>
 
               {onSearchChange && (

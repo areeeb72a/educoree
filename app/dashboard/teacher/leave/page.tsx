@@ -70,13 +70,20 @@ export default function TeacherLeavePage() {
     setMessage("");
 
     try {
+      const fromVal = new Date(form.start_date);
+      const toVal = new Date(form.end_date);
+      const diffTime = Math.abs(toVal.getTime() - fromVal.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
       const { error } = await supabase
         .from("leave_applications")
         .insert({
           school_id: schoolId,
           applicant_id: teacher.id,
-          start_date: form.start_date,
-          end_date: form.end_date,
+          from_date: form.start_date,
+          to_date: form.end_date,
+          days: diffDays,
+          leave_type: "Casual",
           reason: form.reason,
           status: "pending"
         });
@@ -209,7 +216,7 @@ export default function TeacherLeavePage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>{leave.reason}</div>
                         <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                          📅 {leave.start_date} to {leave.end_date}
+                          📅 {leave.from_date || leave.start_date} to {leave.to_date || leave.end_date} ({leave.days || 1} {leave.days === 1 ? 'day' : 'days'})
                         </div>
                       </div>
 
