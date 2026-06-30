@@ -122,6 +122,11 @@ export default function DashboardLayout({
         
         if (profile) {
           setUserName(profile.name || "");
+          if (typeof window !== "undefined") {
+            const isProtected = profile.school_id === "cf5bf57e-8f19-49c6-bbfd-77010a939866";
+            const isOwnerOrAdmin = (profile.role === "super_admin") || (profile.id === "7fc45439-0e2d-4150-80a7-da2219fa9c4a");
+            (window as any).__userAllowedToEdit = !isProtected || isOwnerOrAdmin;
+          }
           if (profile.schools) {
             setSchoolName(profile.schools.name || "");
             setSchoolLogo(profile.schools.logo_url || "");
