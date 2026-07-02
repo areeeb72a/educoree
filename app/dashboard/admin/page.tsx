@@ -115,10 +115,16 @@ export default function AdminDashboard() {
   async function fetchStudents() {
     if (!profile?.school_id) return
     setStudentsLoading(true)
-    const { data } = await supabase
+    let query = supabase
       .from('students')
       .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, joining_date, branches(name), guardians(name, gr_number, phone)')
       .eq('school_id', profile.school_id)
+
+    if (profile.role === 'admin' && profile.branch_id) {
+      query = query.eq('branch_id', profile.branch_id)
+    }
+
+    const { data } = await query
       .order('grade')
       .order('name')
     setStudentsList(data || [])
@@ -139,12 +145,17 @@ export default function AdminDashboard() {
 
   async function downloadStaffCSV() {
     if (!profile?.school_id) return
-    const { data: staff, error } = await supabase
+    let query = supabase
       .from('profiles')
       .select('name, role, email, phone, joining_date, nic_number, subject_specialization, auto_id, active')
       .eq('school_id', profile.school_id)
       .neq('role', 'student')
-      .order('name')
+
+    if (profile.role === 'admin' && profile.branch_id) {
+      query = query.eq('branch_id', profile.branch_id)
+    }
+
+    const { data: staff, error } = await query.order('name')
     if (error) { alert('Failed to fetch staff data: ' + error.message); return }
 
     const headers = ['name', 'email', 'role', 'phone', 'joining_date', 'nic_number', 'subject_specialization', 'auto_id', 'active']
@@ -713,12 +724,17 @@ export default function AdminDashboard() {
   async function fetchResetUsers() {
     if (!profile?.school_id) return
     setResetLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
       .select('id, name, role, phone, auto_id, active')
       .eq('school_id', profile.school_id)
       .in('role', ['accounts', 'teacher', 'student', 'parent'])
-      .order('name')
+
+    if (profile.role === 'admin' && profile.branch_id) {
+      query = query.eq('branch_id', profile.branch_id)
+    }
+
+    const { data, error } = await query.order('name')
     if (!error) {
       setResetUsers(data || [])
     }
@@ -786,12 +802,17 @@ export default function AdminDashboard() {
   async function fetchStaff() {
     if (!profile?.school_id) return
     setStaffLoading(true)
-    const { data } = await supabase
+    let query = supabase
       .from('profiles')
       .select('id, name, role, phone, joining_date, active, auto_id, branch_id, photo_url, nic_number, subject_specialization')
       .eq('school_id', profile.school_id)
       .neq('role', 'student')
-      .order('name')
+
+    if (profile.role === 'admin' && profile.branch_id) {
+      query = query.eq('branch_id', profile.branch_id)
+    }
+
+    const { data } = await query.order('name')
     setStaffList(data || [])
     setStaffLoading(false)
     setStaffLoaded(true)
@@ -1489,13 +1510,16 @@ export default function AdminDashboard() {
   }
 
   async function fetchData() {
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
     const { data: prof } = await supabase.from('profiles').select('*, schools(*)').eq('id', user.id).single()
     setProfile(prof)
     if (prof?.school_id) {
-      const { count } = await supabase.from('profiles').select('id', { count: 'exact' }).eq('school_id', prof.school_id).neq('role', 'student')
+      let query = supabase.from('profiles').select('id', { count: 'exact' }).eq('school_id', prof.school_id).neq('role', 'student')
+      if (prof.role === 'admin' && prof.branch_id) {
+        query = query.eq('branch_id', prof.branch_id)
+      }
+      const { count } = await query
       setStats(s => ({ ...s, totalStaff: count || 0 }))
     }
     setLoading(false)

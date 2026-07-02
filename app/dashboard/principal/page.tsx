@@ -868,6 +868,25 @@ export default function PrincipalDashboard() {
                                           <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', borderTop: '1px solid var(--border-subtle)', marginTop: 6, paddingTop: 6 }}>
                                             Guardian: {s.guardianName}
                                           </div>
+                                          {s.user_id && (
+                                            <button
+                                              onClick={() => handleImpersonate(s, 'student')}
+                                              style={{
+                                                width: '100%',
+                                                padding: '6px',
+                                                marginTop: '8px',
+                                                borderRadius: '6px',
+                                                border: 'none',
+                                                background: 'rgba(124,58,237,0.15)',
+                                                color: 'var(--accent-purple)',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              👤 Login As Student
+                                            </button>
+                                          )}
                                         </div>
                                       ))}
                                     </div>

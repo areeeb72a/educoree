@@ -26,6 +26,7 @@ type Student = {
   emergency_phone: string | null
   active: boolean | null
   photo_url?: string | null
+  user_id?: string | null
   branches?: { name: string } | null
   guardians?: { name: string; gr_number: string; phone: string } | null
 }
