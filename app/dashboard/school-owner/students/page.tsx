@@ -100,7 +100,7 @@ export default function StudentsManagement() {
     const [sRes, bRes] = await Promise.all([
       supabase
         .from('students')
-        .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, branches(name), guardians(name, gr_number, phone)')
+        .select('id, auto_id, name, dob, blood_group, grade, section, roll_number, branch_id, guardian_id, sibling_order, discount_pct, emergency_phone, active, photo_url, user_id, branches(name), guardians(name, gr_number, phone)')
         .eq('school_id', schoolId)
         .order('grade')
         .order('name'),
@@ -171,6 +171,39 @@ export default function StudentsManagement() {
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = Math.min(startIndex + itemsPerPage, filtered.length)
   const paginated = filtered.slice(startIndex, endIndex)
+
+  async function handleImpersonate(targetStudent: Student) {
+    if (!targetStudent.user_id) {
+      alert("Error: Student has no associated login profile user ID.")
+      return
+    }
+    try {
+      const { data: targetProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetStudent.user_id)
+        .single()
+
+      if (error || !targetProfile) {
+        alert("Error: Could not retrieve student profile.")
+        return
+      }
+
+      if (!localStorage.getItem("impersonate_user_id")) {
+        const currentUserSaved = localStorage.getItem("current_user_profile")
+        if (currentUserSaved) {
+          localStorage.setItem("original_user_profile", currentUserSaved)
+        }
+      }
+
+      localStorage.setItem("impersonate_user_id", targetStudent.user_id)
+      localStorage.setItem("current_user_profile", JSON.stringify(targetProfile))
+
+      window.location.href = '/dashboard/student'
+    } catch (err: any) {
+      alert("Error: " + err.message)
+    }
+  }
 
   return (
     <DashboardLayout
@@ -317,6 +350,7 @@ export default function StudentsManagement() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
+                          {s.user_id && <button onClick={() => handleImpersonate(s)} className="row-btn" style={{ background: 'rgba(124,58,237,0.15)', color: 'var(--accent-purple)', border: 'none' }}>👤 Login As</button>}
                           <button onClick={() => setViewStudent(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>View</button>
                           <button onClick={() => openEdit(s)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>Edit</button>
                           <button onClick={() => toggleActive(s)} className="row-btn" style={{

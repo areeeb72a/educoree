@@ -298,6 +298,36 @@ export default function SchoolDetailPage() {
     )
   }
 
+  async function handleImpersonateOwner() {
+    if (!school?.owner_id) return
+    try {
+      const { data: targetProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', school.owner_id)
+        .single()
+
+      if (error || !targetProfile) {
+        alert("Error: Could not retrieve owner profile.")
+        return
+      }
+
+      if (!localStorage.getItem("impersonate_user_id")) {
+        const currentUserSaved = localStorage.getItem("current_user_profile")
+        if (currentUserSaved) {
+          localStorage.setItem("original_user_profile", currentUserSaved)
+        }
+      }
+
+      localStorage.setItem("impersonate_user_id", school.owner_id)
+      localStorage.setItem("current_user_profile", JSON.stringify(targetProfile))
+
+      window.location.href = '/dashboard/school-owner'
+    } catch (err: any) {
+      alert("Error: " + err.message)
+    }
+  }
+
   return (
     <DashboardLayout
       role="super-admin"
@@ -457,6 +487,28 @@ export default function SchoolDetailPage() {
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Phone</span>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{owner.phone || '-'}</span>
                   </div>
+
+                  <button
+                    onClick={handleImpersonateOwner}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      background: 'rgba(124,58,237,0.15)',
+                      color: 'var(--accent-purple)',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      marginTop: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    👤 Login As Owner
+                  </button>
 
                   {showResetPwd && (
                     <div style={{ marginTop: 12, paddingTop: 12 }}>

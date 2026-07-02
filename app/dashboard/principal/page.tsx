@@ -374,7 +374,7 @@ export default function PrincipalDashboard() {
     setStudentsLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, name, grade, section, roll_number, auto_id, guardian_id, active')
+      .select('id, name, grade, section, roll_number, auto_id, guardian_id, active, user_id')
       .eq('branch_id', branchId)
       .eq('active', true)
       .order('grade')
@@ -594,6 +594,41 @@ export default function PrincipalDashboard() {
   const tabs = ['overview', 'teachers', 'students', 'classes', 'attendance', 'timesheet', 'appraisal', 'reports']
   const todayPct = todayStats.total ? Math.round((todayStats.present / todayStats.total) * 100) : 0
 
+  async function handleImpersonate(target: any, targetRole: 'teacher' | 'student') {
+    const profileId = target.user_id || target.id
+    if (!profileId) {
+      alert("Error: Target profile ID not found.")
+      return
+    }
+    try {
+      const { data: targetProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single()
+
+      if (error || !targetProfile) {
+        alert("Error: Could not retrieve target profile.")
+        return
+      }
+
+      if (!localStorage.getItem("impersonate_user_id")) {
+        const currentUserSaved = localStorage.getItem("current_user_profile")
+        if (currentUserSaved) {
+          localStorage.setItem("original_user_profile", currentUserSaved)
+        }
+      }
+
+      localStorage.setItem("impersonate_user_id", profileId)
+      localStorage.setItem("current_user_profile", JSON.stringify(targetProfile))
+
+      const targetRoute = targetRole === 'student' ? '/dashboard/student' : '/dashboard/teacher'
+      window.location.href = targetRoute
+    } catch (err: any) {
+      alert("Error: " + err.message)
+    }
+  }
+
   return (
     <DashboardLayout
       role="principal"
@@ -700,7 +735,27 @@ export default function PrincipalDashboard() {
                               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Phone: {t.phone || '—'} · ID: {t.auto_id || '—'}</div>
                             </div>
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)' }}>{isExpanded ? 'Collapse ▲' : 'Details ▼'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleImpersonate(t, 'teacher');
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 8,
+                                background: 'rgba(124,58,237,0.15)',
+                                color: 'var(--accent-purple)',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                fontWeight: 700
+                              }}
+                            >
+                              👤 Login As
+                            </button>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)' }}>{isExpanded ? 'Collapse ▲' : 'Details ▼'}</span>
+                          </div>
                         </div>
 
                         {isExpanded && (

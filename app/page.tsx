@@ -97,6 +97,11 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("current_user_profile", JSON.stringify(profile));
+        localStorage.removeItem("impersonate_user_id");
+        localStorage.removeItem("original_user_profile");
+      }
       window.location.href = target
     } catch (err: any) {
       setError(err.message || 'Invalid login credentials')

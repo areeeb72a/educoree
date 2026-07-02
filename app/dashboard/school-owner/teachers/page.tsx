@@ -194,6 +194,43 @@ export default function TeachersManagement() {
   const endIndex = Math.min(startIndex + itemsPerPage, filtered.length)
   const paginated = filtered.slice(startIndex, endIndex)
 
+  async function handleImpersonate(targetTeacher: Teacher) {
+    try {
+      const { data: targetProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetTeacher.id)
+        .single()
+
+      if (error || !targetProfile) {
+        alert("Error: Could not retrieve staff profile.")
+        return
+      }
+
+      if (!localStorage.getItem("impersonate_user_id")) {
+        const currentUserSaved = localStorage.getItem("current_user_profile")
+        if (currentUserSaved) {
+          localStorage.setItem("original_user_profile", currentUserSaved)
+        }
+      }
+
+      localStorage.setItem("impersonate_user_id", targetTeacher.id)
+      localStorage.setItem("current_user_profile", JSON.stringify(targetProfile))
+
+      const routes: Record<string, string> = {
+        principal: '/dashboard/principal',
+        admin: '/dashboard/admin',
+        teacher: '/dashboard/teacher',
+        accounts: '/dashboard/accounts',
+      }
+
+      const targetRoute = routes[targetProfile.role] || '/dashboard/teacher'
+      window.location.href = targetRoute
+    } catch (err: any) {
+      alert("Error: " + err.message)
+    }
+  }
+
   return (
     <DashboardLayout
       role="school-owner"
@@ -309,6 +346,7 @@ export default function TeachersManagement() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => handleImpersonate(t)} className="row-btn" style={{ background: 'rgba(124,58,237,0.15)', color: 'var(--accent-purple)', border: 'none' }}>👤 Login As</button>
                           <button onClick={() => setViewTeacher(t)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>View</button>
                           <button onClick={() => openEdit(t)} className="row-btn" style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}>Edit</button>
                           <button

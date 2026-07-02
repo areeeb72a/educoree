@@ -71,6 +71,10 @@ export default function DashboardLayout({
   const [ticker, setTicker] = useState<any>(null);
   const [studentClassInfo, setStudentClassInfo] = useState<string>("");
 
+  // Impersonation state
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [originalProfile, setOriginalProfile] = useState<any>(null);
+
   // Voluntary password change states
   const [newPw, setNewPw] = useState("");
   const [changingPw, setChangingPw] = useState(false);
@@ -100,6 +104,33 @@ export default function DashboardLayout({
     setChangingPw(false);
   }
 
+  function handleExitImpersonation() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("impersonate_user_id");
+      const orig = localStorage.getItem("original_user_profile");
+      if (orig) {
+        localStorage.setItem("current_user_profile", orig);
+        localStorage.removeItem("original_user_profile");
+        try {
+          const parsed = JSON.parse(orig);
+          const routes: Record<string, string> = {
+            super_admin: '/dashboard/super-admin',
+            school_owner: '/dashboard/school-owner',
+            principal: '/dashboard/principal',
+            admin: '/dashboard/admin',
+            teacher: '/dashboard/teacher',
+            student: '/dashboard/student',
+            parent: '/dashboard/parent',
+            accounts: '/dashboard/accounts',
+          };
+          window.location.href = routes[parsed.role] || '/';
+          return;
+        } catch {}
+      }
+      window.location.href = '/';
+    }
+  }
+
   useEffect(() => {
     // Load preference from localStorage
     const saved = localStorage.getItem("sa_dashboard_design");
@@ -107,6 +138,18 @@ export default function DashboardLayout({
       setSelectedDesign(saved === "glow-grid" ? "space-navy" : saved);
     }
     fetchUserSession();
+
+    // Impersonation check
+    if (typeof window !== "undefined") {
+      const impId = localStorage.getItem("impersonate_user_id");
+      const origProfSaved = localStorage.getItem("original_user_profile");
+      if (impId && origProfSaved) {
+        setIsImpersonating(true);
+        try {
+          setOriginalProfile(JSON.parse(origProfSaved));
+        } catch {}
+      }
+    }
   }, []);
 
   async function fetchUserSession() {
@@ -123,6 +166,7 @@ export default function DashboardLayout({
         if (profile) {
           setUserName(profile.name || "");
           if (typeof window !== "undefined") {
+            localStorage.setItem("current_user_profile", JSON.stringify(profile));
             const isProtected = profile.school_id === "cf5bf57e-8f19-49c6-bbfd-77010a939866";
             const isOwnerOrAdmin = (profile.role === "super_admin") || (profile.id === "7fc45439-0e2d-4150-80a7-da2219fa9c4a");
             (window as any).__userAllowedToEdit = !isProtected || isOwnerOrAdmin;
@@ -1115,6 +1159,51 @@ export default function DashboardLayout({
             overflowY: "auto",
             maxHeight: "100vh"
           }}>
+            {/* Impersonation Banner */}
+            {isImpersonating && (
+              <div style={{
+                background: "linear-gradient(90deg, #7C3AED, #EC4899)",
+                color: "#FFF",
+                padding: "10px 20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "13px",
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(124, 58, 237, 0.2)",
+                zIndex: 999,
+                flexShrink: 0
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "16px" }}>🕵️‍♂️</span>
+                  <span>
+                    Impersonating: <strong style={{ color: "#FFF" }}>{userName}</strong> ({displayRoleName})
+                    <span style={{ opacity: 0.8, fontWeight: 400, marginLeft: "6px" }}>
+                      (Original session: {originalProfile?.name || 'Admin'})
+                    </span>
+                  </span>
+                </div>
+                <button
+                  onClick={handleExitImpersonation}
+                  style={{
+                    background: "#FFF",
+                    color: "#7C3AED",
+                    border: "none",
+                    padding: "5px 12px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    transition: "transform 0.1s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  Exit Impersonation
+                </button>
+              </div>
+            )}
             {/* Global Notice Ticker */}
             {ticker && (
               <div style={{
