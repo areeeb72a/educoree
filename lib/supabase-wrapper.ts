@@ -24,14 +24,14 @@ export function createClient(supabaseUrl: string, supabaseKey: string, options?:
                 if (typeof window !== "undefined") {
                   const impersonateId = localStorage.getItem("impersonate_user_id");
                   if (impersonateId) {
-                    const res = await (Reflect.get(authTarget, authProp, authReceiver) as any)(...args);
+                    const res = await (Reflect.get(authTarget, authProp, authReceiver) as any).apply(authTarget, args);
                     if (res.data && res.data.user) {
                       res.data.user.id = impersonateId;
                     }
                     return res;
                   }
                 }
-                return (Reflect.get(authTarget, authProp, authReceiver) as any)(...args);
+                return (Reflect.get(authTarget, authProp, authReceiver) as any).apply(authTarget, args);
               };
             }
             if (authProp === "getSession") {
@@ -39,14 +39,14 @@ export function createClient(supabaseUrl: string, supabaseKey: string, options?:
                 if (typeof window !== "undefined") {
                   const impersonateId = localStorage.getItem("impersonate_user_id");
                   if (impersonateId) {
-                    const res = await (Reflect.get(authTarget, authProp, authReceiver) as any)(...args);
+                    const res = await (Reflect.get(authTarget, authProp, authReceiver) as any).apply(authTarget, args);
                     if (res.data && res.data.session && res.data.session.user) {
                       res.data.session.user.id = impersonateId;
                     }
                     return res;
                   }
                 }
-                return (Reflect.get(authTarget, authProp, authReceiver) as any)(...args);
+                return (Reflect.get(authTarget, authProp, authReceiver) as any).apply(authTarget, args);
               };
             }
             return Reflect.get(authTarget, authProp, authReceiver);
